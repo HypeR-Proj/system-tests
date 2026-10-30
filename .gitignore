@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+target/
+out/
+__pycache__/
+*.pyc
+.config
+.config.old
+
+# The manifest links build-tool unit tests from the build repository.
+/build
