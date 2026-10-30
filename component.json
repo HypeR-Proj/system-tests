@@ -4,6 +4,247 @@
   "version": 1,
   "name": "system-tests",
   "kind": "testing",
-  "packages": [],
-  "tests": []
+  "packages": [
+    "hyper-fs-failure",
+    "hyper-fs-worker-probe",
+    "hyper-lifecycle-stress",
+    "hyper-retirement-probe",
+    "hyper-scheduler-bench",
+    "hyper-service-probe",
+    "hyper-terminal-probe",
+    "hyper-vm-smoke"
+  ],
+  "tests": [
+    [
+      "python3",
+      "{component}/self-test.py"
+    ]
+  ],
+  "cargo": [
+    {
+      "manifest": "app/fs-failure/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/fs-worker-probe/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/lifecycle-stress/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/retirement-probe/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/scheduler-bench/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/service-probe/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/terminal-probe/Cargo.toml",
+      "domain": "system"
+    },
+    {
+      "manifest": "app/vm-smoke/Cargo.toml",
+      "domain": "system"
+    }
+  ],
+  "artifacts": [
+    {
+      "binary": "hyper-fs-worker-probe",
+      "staged": "fs-worker-probe",
+      "destination": "svc/fs-worker-probe",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/fs-worker-probe/Cargo.toml",
+      "enabled": false,
+      "requires": [
+        {
+          "module": "fs-backend",
+          "artifact": "fs-backend-system"
+        }
+      ]
+    },
+    {
+      "binary": "hyper-lifecycle-stress",
+      "staged": "lifecycle-stress",
+      "destination": "bin/lifecycle-stress",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/lifecycle-stress/Cargo.toml",
+      "enabled": false
+    },
+    {
+      "binary": "hyper-retirement-probe",
+      "staged": "retirement-probe",
+      "destination": "bin/retirement-probe",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/retirement-probe/Cargo.toml",
+      "enabled": false,
+      "requires": [
+        {
+          "module": "component-manager",
+          "artifact": "component-manager"
+        }
+      ]
+    },
+    {
+      "binary": "hyper-sched-bench",
+      "staged": "sched-bench",
+      "destination": "bin/sched-bench",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/scheduler-bench/Cargo.toml",
+      "enabled": false
+    },
+    {
+      "binary": "hyper-service-probe",
+      "staged": "service-probe",
+      "destination": "bin/service-probe",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/service-probe/Cargo.toml",
+      "enabled": false,
+      "requires": [
+        {
+          "module": "component-manager",
+          "artifact": "component-manager"
+        }
+      ]
+    },
+    {
+      "binary": "hyper-terminal-probe",
+      "staged": "terminal-probe",
+      "destination": "bin/terminal-probe",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/terminal-probe/Cargo.toml",
+      "enabled": false,
+      "requires": [
+        {
+          "module": "terminal-service",
+          "artifact": "terminal-service"
+        }
+      ]
+    },
+    {
+      "source": "{apps}/echo-static",
+      "destination": "bin/echo-static",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "environment": "system"
+    },
+    {
+      "source": "{apps}/dynamic-test",
+      "destination": "bin/dynamic-test",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "environment": "system"
+    },
+    {
+      "source": "{std}/std-dynamic",
+      "destination": "bin/std-test",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "environment": "system"
+    },
+    {
+      "source": "{std}/std-static",
+      "destination": "bin/std-test-static",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "environment": "system"
+    },
+    {
+      "source": "{apps}/libdynamic-probe.so",
+      "destination": "lib64/{arch}-hyper-hyper/libdynamic-probe.so",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "environment": "system"
+    }
+  ],
+  "workspace": {
+    "system_tests": {
+      "cases": "cases",
+      "fixtures": "fixtures.json"
+    }
+  },
+  "test_requires_rust": true,
+  "build": {
+    "requires": [
+      "toolchain"
+    ],
+    "actions": {
+      "all": [
+        [
+          "python3",
+          "{workspace}/scripts/build-native-module.py",
+          "--module",
+          "{module}",
+          "--action",
+          "{action}"
+        ]
+      ],
+      "build": [
+        [
+          "python3",
+          "{workspace}/scripts/build-native-module.py",
+          "--module",
+          "{module}",
+          "--action",
+          "{action}"
+        ]
+      ],
+      "check": [
+        [
+          "python3",
+          "{workspace}/scripts/build-native-module.py",
+          "--module",
+          "{module}",
+          "--action",
+          "{action}"
+        ]
+      ]
+    }
+  }
 }

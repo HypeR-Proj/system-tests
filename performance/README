@@ -1,0 +1,226 @@
+SPDX-FileCopyrightText: 2026 roolrz
+SPDX-License-Identifier: Apache-2.0
+
+AArch64 QEMU TCG performance baseline
+
+For the Native scheduler latency/contention suite, see scheduler/README.md.
+Its separate --functional mode checks correctness in CI without timing gates.
+
+Manual local measurements only. Do not add these workloads to QEMU CI or use
+their timings as CI thresholds. Cross-architecture TCG and shared runner CPU
+availability make GitHub performance numbers unsuitable for this comparison.
+The runners refuse execution when CI=true or GITHUB_ACTIONS=true.
+For physical Pi 5 storage/network measurements, use tests/hardware/storage
+and tests/hardware/network. Those are separate manual fixtures and are not
+built or packaged by default; their results are not comparable to TCG timings.
+
+This fixture compares a Native HypeR process with a direct Linux process on
+the same QEMU machine. It measures application-visible performance, including
+the HypeR I/O VM storage path. It is not a nested business VM comparison or a
+measurement of physical DRAM or SSD bandwidth.
+
+Prerequisites
+
+Use the repository's Clang/LLVM and pinned Rust toolchains. Install QEMU,
+dosfstools and mtools, assemble/cache the Native SDK and application dependencies,
+and fetch the normal AArch64 Alpine guest assets and the QEMU I/O appliance.
+Supply a complete production AArch64 kernel configuration. The preparation
+script rebuilds the normal image and applications without test/audit features;
+it copies the configuration rather than modifying kernel/.config.
+
+From the repository root:
+
+  python3 -B tests/performance/prepare.py \
+    --output target/performance-baseline/fixture \
+    --io-package target/io-vm/packages/PACKAGE_DIGEST \
+    --config /absolute/path/to/aarch64.config
+
+  python3 -B tests/performance/run.py \
+    --fixture target/performance-baseline/fixture \
+    --output target/performance-baseline/results
+
+Both output directories must be new. The runner requires local Unix socket
+access for QMP. Keep paths short enough for macOS Unix sockets. Do not run
+compilers or other benchmarks concurrently. For a preliminary smoke run, append
+--order hyper linux; the default is hyper/linux/linux/hyper/hyper/linux.
+
+To measure a kernel change against the identical workloads, initramfs and disk,
+keep the fixture immutable and pass --hyper-image path/to/new/hyper.img. The
+runner records the override's path and SHA-256. Build a production image with
+the fixture's kernel.config; do not use stack-audit or profiling features.
+
+Controlled configuration
+
+QEMU virt-11.1, virtualization enabled, GICv3, max CPU, explicit multi-thread TCG,
+4 CPUs and 1 GiB RAM. No network or instruction-count clock. Both systems use
+the same virtio-scsi/raw disk/cache=writeback configuration. Each boot receives
+a fresh copy of the same GPT/FAT32 image, using the production board's volume
+size and formatter defaults. The runner reads each copy before boot, so host
+cache state is warm. Linux mounts FAT32 with noatime. HypeR keeps its ordinary
+services and its 64 MiB, one-vCPU I/O VM, all within the outer resource budget;
+there are no business VMs and no added CPU affinity policy.
+
+The memory workload is compiled once at -O2 -march=armv8-a and the same object
+is linked into both executables. Platform adapters provide clocks and file I/O:
+the installed HypeR SDK std bridge and direct AArch64 Linux syscalls. This avoids
+comparing different libc memcpy implementations. Compiler barriers retain the
+loops, warm-up occurs before timing, and read/copy results are checked.
+
+Measurements
+
+* memory_copy / memory_read: 8 MiB resident arrays, 256 passes per sample,
+  three samples. Copy counts payload bytes once, not read-plus-write traffic.
+  Allocation, page fault, NUMA and multi-thread scaling are not measured.
+* file_read_first: first application data read after boot, 16 MiB, 128 KiB
+  requests. Guest filesystem metadata may already be warm from mounting.
+* file_read_repeat: two immediate repeats, reported separately from first
+  reads to distinguish guest cache reuse from the initial backend traversal.
+* file_random_read_4k: 512 deterministic requests per sample, three samples,
+  after sequential reading, one application request outstanding.
+* file_grow_sync: write a newly created file to 16 MiB and fsync once. Open and
+  create are outside the interval; allocation during growth is included.
+* file_overwrite_sync: overwrite the allocated file twice, fsync per pass.
+* file_random_write_sync_4k: 64 deterministic overwrites per sample, fsync
+  after each request, three samples. No O_DIRECT is used in either OS.
+* file_random_read_hot_4k: 512 deterministic aligned requests per sample over
+  the first 256 KiB of seed.bin, three samples. The complete 64-page working
+  set is read and checked before each sample, outside timing. Every returned
+  byte is checked afterward using the existing resident memory buffer. This
+  isolates a small working set; the 16 MiB scan/random cases exercise a
+  larger one. HypeR cache capacity now grows with available managed RAM. The hot case
+  runs after all existing cases and readback checks, preserving their order
+  and data. Both systems run the same code; run.py reports this case in IOPS.
+
+The native kernel may batch device requests internally; QD1 describes the
+application, not every layer below it. Guest monotonic clocks measure each
+interval; a host monotonic clock also records the complete workload. No console
+output or data verification occurs within timed intervals. Full seed checks
+and write readback run outside them. After each QEMU exits, mtools verifies the
+complete written file through the host image, independently of guest caches.
+This is a readback check, not a power-failure durability proof.
+
+Results and limits
+
+Build identities, artifact SHA-256 hashes, exact QEMU commands, host metadata,
+serial logs, nanosecond samples, CSV data and QMP block counters are preserved.
+The summary takes the median within each boot, then the median across boots;
+min/max describe boot medians. Temporary per-run disks are removed after
+successful readback; failed-run disks remain for diagnosis. QEMU processes are
+owned by the runner and terminated on success and failure.
+
+QMP counters cover the entire workload, including untimed verification reads;
+the added hot-case warmup also contributes to them. Do not describe these
+counters as the traffic of a single 16 MiB sample. Short Linux
+cached reads can be only a few milliseconds: treat their precise throughput
+as exploratory. Three boots are an initial baseline, not confidence intervals.
+TCG includes translation and software MMU overhead and does not model the host
+CPU's memory hierarchy as guest hardware. Results must not be extrapolated to
+bare-metal HypeR or hardware-assisted virtualization. Raw block performance,
+ext4, larger-than-memory datasets, concurrent I/O and long-duration tail
+latency require separate workloads.
+
+Cold and repeated VM startup
+
+vm-start.py measures HypeR startup through an ordinary Alpine VM loaded from
+the board FAT volume. Prepare a disposable board-image fixture from boards/qemu.json,
+set Alpine autostart=true, and keep board.json, bootstrap.cpio and base.img in
+its directory. Use make board-image with explicit BOARD_CONFIG, BOARD_OUTPUT,
+BOARD_IMAGE and CONFIG_FILE paths and the cached IO_VM_PACKAGE. Save its normal
+kernel image alongside it before changing source or rebuilding.
+
+  python3 -B tests/performance/vm-start.py \
+    --fixture target/local-startup/fixture \
+    --image target/local-startup/hyper.img \
+    --output target/local-startup/results
+
+Each of the default three boots starts fresh HypeR and Linux guests, warms only
+the host image cache, and uses QEMU snapshot writes that are discarded at exit.
+The script reports runtime entry to vCPU start submission, host process start
+to that submission, and host start to a working Alpine shell. The last interval
+includes console attachment and guest boot; it is not pure file-read latency.
+It verifies a guest shell command before cleaning up its owned QEMU process.
+For an application change, pass --initramfs with the new production archive;
+keep the board and initial disk identical. --boots 1 is useful for diagnosis.
+Use --starts 3 to follow the initial autostart with two vmm stop/start alpine
+cycles in the same HypeR boot. Each cycle verifies the guest shell and the final
+cycle stops the VM. Results retain cold-start fields and report each restart
+separately; restart wall time starts immediately before the vmm start command.
+The manager retains its image handle between cycles, so these measurements
+exercise ITB cache reuse, not final-handle-close identity retention. The FAT
+lifecycle tests cover that separate contract.
+The existing startup-profile runtime feature can explain stages in a separate
+archive. Its per-payload read/write durations are recorded under starts[].payloads;
+final timing comparisons must use ordinary production applications.
+This startup runner is also local/manual only, with no CI performance gates.
+
+Interactive Native application startup
+
+app-start.py compares the first and repeated invocation of small commands using
+an existing board-image fixture. It does not rebuild or modify that fixture:
+each QEMU boot writes to a temporary disk overlay. For example:
+
+  python3 -B tests/performance/app-start.py \
+    --qemu /opt/homebrew/bin/qemu-system-aarch64 \
+    --image kernel/target/aarch64-unknown-none-softfloat/kernel/hyper.img \
+    --initramfs target/board/qemu/bootstrap.cpio \
+    --disk target/board/qemu/disk.img \
+    --output target/app-start-before
+
+Repeat with --image pointing at the candidate kernel and a new output directory
+to isolate kernel changes from application and filesystem image changes. The
+defaults run three boots and ten repeated samples per command. Use --command
+multiple times for a focused comparison. Do not compile concurrently.
+
+The host clock measures command submission through the next shell prompt,
+including program execution, serial output and process retirement. The pwd
+builtin is a transport/control sample; ls -d emits one line, while ls -1 lists
+the system directory and includes its metadata traversal cost. A first command
+after normal boot is not a claim of entirely cold storage: the formal init and
+other services may already have loaded common libraries. Logs, raw samples,
+artifact hashes and the exact QEMU command accompany the result. No performance
+threshold is added to CI.
+
+Native hot-path regression measurements
+
+hotpaths.c promotes the focused RPi5 probes into a reproducible, manual fixture.
+It is not built or deployed by any default application profile. Build against
+the installed SDK after `make sdk` (select HYPER_CLANG/HYPER_LD as for other SDK
+C consumers):
+
+  target/sdk/aarch64/bin/hyper-clang -O2 -g -march=armv8-a \
+    -Wall -Wextra -Werror -DBENCH_CUSTOM_ENTRY \
+    tests/performance/hyper.c tests/performance/hotpaths.c \
+    -lhyper-std -o /tmp/hotpaths
+
+Deploy that executable with the matching SDK libraries using a custom product
+or copy it into a writable Native filesystem. Run `hotpaths allocmap`,
+`hotpaths alloc-parallel 10`, `hotpaths syscall`, `hotpaths scheduler`,
+`hotpaths memory` and `hotpaths latency`. The optional scale is 1..20; longer
+allocation runs allow the scheduler to establish parallelism. Each PROBE row
+contains name, repetition, work units and elapsed nanoseconds. There is no
+console output inside the measured loops. Threaded totals include joins and
+thread teardown/heap trimming; they are application-level costs.
+
+allocmap retains 0/1/32/64 MiB while repeatedly allocating/freeing 64 KiB. Each
+allocation exceeds the ordinary 64 KiB heap region once headers are included,
+so bounded spare-region reuse cannot hide its map/unmap cost. alloc-parallel
+uses 1/2/4/8 workers and batches of 64 small allocations. Also record process
+memory before/after idle/exit; throughput alone cannot justify retaining memory.
+Each allocation worker retains one small block outside its measured loop to
+keep empty-heap teardown from dominating the allocator contention comparison.
+
+latency emits 512 raw atomic request/reply times and a clock-pair control.
+`hotpaths read-latency PATH BYTES` opens an existing file read-only, then emits
+512 deterministic random 4 KiB read times within the supplied page-aligned size
+(at least 128 KiB). It never creates, truncates or writes the file. The samples
+include the entire synchronous Native filesystem path, cache hits and scheduling;
+they do not separate RPC queueing from physical device wait. Analyze percentiles
+on the host and correlate with PMU captures rather than equating CPU samples
+with disk wait or wake-to-run time. The empty clock control is diagnostic; do not
+blindly subtract it from every sample. Failed/short I/O aborts the run.
+
+Use the same machine, configuration, workload count, dataset and warm/cold state
+for before/after comparisons. Preserve kernel ELF and executable/library hashes.
+QEMU is useful for correctness and within-QEMU comparisons, not RPi5 speedup
+claims. No timing thresholds are added to CI, and no scheduler policy or storage
+flush/durability behavior is changed by these probes.

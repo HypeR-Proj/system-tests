@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+
+[package]
+name = "hyper-io-smoke"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+repository = "https://github.com/HypeR-Proj/ci"
+
+[workspace]
+
+[dependencies]
+
+[dependencies.hyper-os]
+version = "=0.0.0"
+features = ["std"]
+
+[dependencies.hyper-rt]
+version = "=0.0.0"
+features = ["std"]
+
+[dependencies.hyper-vm-image]
+version = "=0.0.0"
+path = "../../../lib/vm-image"
+
+[dependencies.hyper-vm-policy]
+version = "=0.0.0"
+path = "../../../lib/vm-policy"
+
+[dependencies.hyper-vm-support]
+version = "=0.0.0"
+path = "../../../lib/vm-support"
+
+[lints]
+
+[lints.rust]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(target_os, values(\"hyper\"))"]
+
+[profile]
+
+[profile.release]
+codegen-units = 1
+debug = 1
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = true
+panic = "abort"
+strip = "none"
