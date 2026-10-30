@@ -11,8 +11,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'test-framework/python'))
+from hyper_test.provenance import source_inventory
 SOURCE = Path(__file__).resolve().parent
 
 
@@ -24,6 +27,8 @@ def main():
     parser.add_argument('--io-package', type=Path, required=True)
     parser.add_argument('--config', type=Path, required=True)
     args = parser.parse_args()
+    if not os.environ.get('HYPER_BUILD_OUTPUT'):
+        parser.error('run through python3 project.py exec -- python3 ' + str(Path(__file__).relative_to(ROOT)))
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     environment = dict(os.environ, CARGO_NET_OFFLINE='true')
@@ -37,7 +42,7 @@ def main():
 
     clang = '/opt/homebrew/opt/llvm/bin/clang' if Path('/opt/homebrew/opt/llvm/bin/clang').exists() else 'clang'
     linker = subprocess.check_output(['sh', 'scripts/find-llvm-tool.sh', 'ld.lld'], cwd=ROOT, text=True).strip()
-    sdk = ROOT / 'target/sdk/aarch64'
+    sdk = Path(os.environ['HYPER_BUILD_OUTPUT']) / 'sdk/aarch64'
     shutil.copyfile(args.config, out / 'kernel.config')
     run(['make', 'image', 'app', 'ARCH=aarch64', f'CONFIG_FILE={out}/kernel.config', 'CARGO_FEATURES='])
     shutil.copyfile(ROOT / 'kernel/target/aarch64-unknown-none-softfloat/kernel/hyper.img', out / 'hyper.img')
@@ -81,7 +86,7 @@ def main():
     for name in artifacts:
         with (out / name).open('rb') as stream:
             hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
-    manifest = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+    manifest = {'source': source_inventory(ROOT),
                 'compiler': subprocess.check_output([clang, '--version'], text=True),
                 'commands': commands, 'sha256': hashes,
                 'workload_sources': {p.name: hashlib.sha256(p.read_bytes()).hexdigest()

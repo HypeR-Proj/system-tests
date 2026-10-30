@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / 'tests/qemu'))
 from hyper_test.command import Shell
 from hyper_test.guest_console import append_console_output
 from hyper_test.session import Session
+from hyper_test.provenance import source_inventory
 from trace_artifacts import TraceArtifacts, boot_command
 from report import validate, write_csv
 from capacity import check_export_capacity, export_budget
@@ -43,8 +44,7 @@ def execute(args):
     os.environ['QEMU_CPUS'] = str(args.cpus)
     command = boot_command(args.qemu, args.image, args.initramfs, args.disk, args.board)
     manifest = dict(mode='functional only' if args.functional else 'manual TCG measurement',
-                    source_revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
-                    source_dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
+                    source=source_inventory(ROOT),
                     host=platform.platform(), qemu_version=subprocess.check_output([str(args.qemu), '--version'], text=True),
                     command=command, environment={k: v for k, v in os.environ.items() if k.startswith('QEMU_')},
                     artifacts={str(p): digest(p) for p in (args.image, args.initramfs, args.board)}, commands=[])

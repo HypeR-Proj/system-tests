@@ -11,9 +11,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'test-framework/python'))
+from hyper_test.provenance import source_inventory
 SOURCE = Path(__file__).resolve().parent
 PLATFORM = ROOT / 'tests/performance'
 
@@ -43,7 +46,7 @@ def main():
         raise SystemExit('Hardware qualification is local/manual only.')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--config', type=Path, default=ROOT / 'kernel/.config')
+    parser.add_argument('--config', type=Path, default=Path(os.environ.get('HYPER_BUILD_OUTPUT', ROOT / 'out')) / 'config/aarch64/modules/kernel.config')
     erofs_tool = ROOT / 'target/host-tools/erofs/bin/mkfs.erofs'
     parser.add_argument('--mkfs-erofs', default=os.environ.get(
         'EROFS_MKFS', str(erofs_tool) if erofs_tool.is_file() else 'mkfs.erofs'))
@@ -51,6 +54,8 @@ def main():
     parser.add_argument('--retirement-probe', action='store_true',
                         help='DESTRUCTIVE image: terminate the I/O runtime 60 seconds after readiness')
     args = parser.parse_args()
+    if not os.environ.get('HYPER_BUILD_OUTPUT'):
+        parser.error('run through python3 project.py exec -- python3 ' + str(Path(__file__).relative_to(ROOT)))
     out = args.output.resolve()
     if args.payload_only and args.retirement_probe:
         parser.error('--retirement-probe requires an image build')
@@ -73,7 +78,7 @@ def main():
     if not clang:
         raise SystemExit('Clang is required')
     linker = run(['sh', 'scripts/find-llvm-tool.sh', 'ld.lld'], capture_output=True, text=True).stdout.strip()
-    sdk = ROOT / 'target/sdk/aarch64'
+    sdk = Path(os.environ['HYPER_BUILD_OUTPUT']) / 'sdk/aarch64'
     if not args.payload_only:
         shutil.copyfile(args.config, out / 'kernel.config')
         run(['make', 'image', 'app', 'ARCH=aarch64', f'CONFIG_FILE={out}/kernel.config',
@@ -138,8 +143,7 @@ def main():
         'system_payload': (None if args.payload_only else
                            json.loads((out / 'disk.img.system.json').read_text())),
         'guest_program': None if args.payload_only else '/usr/bin/storage-qual',
-        'revision': run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip(),
-        'status': run(['git', 'status', '--porcelain'], capture_output=True, text=True).stdout,
+        'source': source_inventory(ROOT),
         'compiler': run([clang, '--version'], capture_output=True, text=True).stdout,
         'commands': commands, 'sha256': {},
         'sources': {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

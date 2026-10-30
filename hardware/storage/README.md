@@ -32,12 +32,12 @@ These payloads are opt-in. Default Make targets, board profiles and Native
 preparation script below adds them to a separate test image. Fault injection
 requires the additional `--retirement-probe` option and is disabled otherwise.
 
-From the repository root, with the ordinary AArch64 configuration and cached
+From the workspace root, with the ordinary AArch64 configuration and cached
 published dependencies:
 
 ```sh
-python3 -B tests/hardware/storage/prepare.py \
-  --output target/board/rpi5-storage-qualification
+python3 project.py exec -- python3 -B tests/hardware/storage/prepare.py \
+  --output "$PWD/out/manual/rpi5-storage-qualification"
 ```
 
 The output contains `disk.img` for the **HypeR test card**, `storage-qual-linux`
@@ -246,8 +246,8 @@ that physical DMA stopped.
 Build an explicitly separate destructive owner-loss image:
 
 ```sh
-python3 -B tests/hardware/storage/prepare.py --retirement-probe \
-  --output target/board/rpi5-storage-retirement
+python3 project.py exec -- python3 -B tests/hardware/storage/prepare.py --retirement-probe \
+  --output "$PWD/out/manual/rpi5-storage-retirement"
 ```
 
 Only this image builds `io-runtime` with `physical-retirement-probe`, in a private
