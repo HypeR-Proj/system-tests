@@ -21,8 +21,8 @@ workspace and never enter a product deployment.
 | [profile-storage](profile-storage.rs) | `make test-boot-profiles` | Transfer an opaque storage capability between independently supervised predecessor/successor processes, then retire bootstrap without an I/O VM. The fixture prepares an independent RAM root; it does not emulate a block driver. |
 
 The standalone init fixtures have no component registration and are built only
-by their test targets. `terminal-probe` declares development-only packaging in
-its `component.mk`. Ordinary system and I/O profiles do not include these
+by their test targets. Development-only programs declare their packaging in this repository’s
+`component.json`. Ordinary system and I/O profiles do not include these
 programs. Host unit tests remain with the production package they exercise.
 
 C and SDK startup fixtures remain under [`tests/native`](../native/).
