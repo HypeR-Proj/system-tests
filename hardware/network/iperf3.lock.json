@@ -1,0 +1,14 @@
+{
+  "SPDX-FileCopyrightText": "2026 roolrz",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "name": "iperf3",
+  "version": "3.19.1-r1",
+  "architecture": "aarch64",
+  "distribution": "Alpine v3.23",
+  "license": "BSD-3-Clause-LBNL",
+  "url": "https://dl-cdn.alpinelinux.org/alpine/v3.23/main/aarch64/iperf3-3.19.1-r1.apk",
+  "sha256": "da2a7b7eaaa0fc1427897999578cef7deb9b283fe220ac0ae38f80e1fc584199",
+  "license_url": "https://raw.githubusercontent.com/esnet/iperf/3.19.1/LICENSE",
+  "license_sha256": "7c9ba0385fcf35c4c9e08ad0c0cba72d4315f36f0f742fef4de826a28cc33a97",
+  "package_source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/a9cc140a3b182f8fc95f0a49473af3394b0957d5/main/iperf3"
+}

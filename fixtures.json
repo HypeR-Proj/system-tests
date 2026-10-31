@@ -1,0 +1,21 @@
+{
+  "SPDX-FileCopyrightText": "2026 roolrz",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "version": 1,
+  "fixtures": {
+    "native": {
+      "architectures": [
+        "aarch64",
+        "riscv64"
+      ],
+      "command": [
+        "sh",
+        "tests/ci/run.sh",
+        "native-fixture"
+      ],
+      "environment": {
+        "SYSTEM_CONFIG": ""
+      }
+    }
+  }
+}

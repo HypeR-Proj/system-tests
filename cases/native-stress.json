@@ -1,0 +1,30 @@
+{
+  "SPDX-FileCopyrightText": "2026 roolrz",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "version": 1,
+  "id": "native-stress",
+  "architectures": [
+    "aarch64",
+    "riscv64"
+  ],
+  "command": [
+    "sh",
+    "tests/ci/run.sh",
+    "native-stress"
+  ],
+  "fixture": "native",
+  "variants": [
+    {
+      "id": "cpu1",
+      "environment": {
+        "CI_STRESS_CPUS": "1"
+      }
+    },
+    {
+      "id": "cpu4",
+      "environment": {
+        "CI_STRESS_CPUS": "4"
+      }
+    }
+  ]
+}

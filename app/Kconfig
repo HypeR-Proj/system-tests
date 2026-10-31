@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+menu "System / Test programs"
+
+config SYSTEM_APP_FS_WORKER_PROBE
+    bool "fs-worker-probe (/svc/fs-worker-probe)"
+    default n
+    depends on SYSTEM_APP_FS_BACKEND_SYSTEM
+    help
+        Build and deploy hyper-fs-worker-probe at /svc/fs-worker-probe.
+
+config SYSTEM_APP_LIFECYCLE_STRESS
+    bool "lifecycle-stress (/bin/lifecycle-stress)"
+    default n
+    help
+        Build and deploy hyper-lifecycle-stress at /bin/lifecycle-stress.
+
+config SYSTEM_APP_RETIREMENT_PROBE
+    bool "retirement-probe (/bin/retirement-probe)"
+    default n
+    depends on SYSTEM_APP_COMPONENT_MANAGER
+    help
+        Build and deploy hyper-retirement-probe at /bin/retirement-probe.
+
+config SYSTEM_APP_SERVICE_PROBE
+    bool "service-probe (/bin/service-probe)"
+    default n
+    depends on SYSTEM_APP_COMPONENT_MANAGER
+    help
+        Build and deploy hyper-service-probe at /bin/service-probe.
+
+config SYSTEM_APP_TERMINAL_PROBE
+    bool "terminal-probe (/bin/terminal-probe)"
+    default n
+    depends on SYSTEM_APP_TERMINAL_SERVICE
+    help
+        Build and deploy hyper-terminal-probe at /bin/terminal-probe.
+
+config SYSTEM_APP_TEST_REPORT
+    bool "test-report (/bin/test-report)"
+    default n
+    help
+        Build and deploy hyper-test-report at /bin/test-report.
+
+config SYSTEM_APP_SCHED_BENCH
+    bool "sched-bench (/bin/sched-bench)"
+    default n
+    help
+        Build the optional Native scheduling benchmark suite.
+        Periodic wakeup, handoff, contention and thread-start measurements.
+
+endmenu

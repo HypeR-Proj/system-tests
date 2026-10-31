@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+# Editor source navigation; hyper-cargo uses the installed Native SDK at build time.
+[build]
+target = "../../../target/sdk/aarch64/share/hyper/targets/aarch64-unknown-hyper.json"
+
+[patch.crates-io]
+hyper-abi = { path = "../../../sdk/abi" }
+hyper-os = { path = "../../../stdlib/rust/hyper-os" }
+hyper-rt = { path = "../../../stdlib/rust/hyper-rt" }
+hyper-sys = { path = "../../../stdlib/rust/hyper-sys" }
+hyper-filesystem = { path = "../../../stdlib/rust/hyper-filesystem" }
