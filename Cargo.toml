@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+
+[workspace]
+resolver = "3"
+exclude = ["native/io-smoke"]
+members = ["app/fs-failure", "app/fs-worker-probe", "app/lifecycle-stress", "app/retirement-probe", "app/scheduler-bench", "app/service-probe", "app/terminal-probe", "app/vm-smoke"]
+
+[profile]
+
+[profile.release]
+codegen-units = 1
+debug = 1
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = true
+panic = "abort"
+strip = "none"

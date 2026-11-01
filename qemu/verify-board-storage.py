@@ -183,11 +183,45 @@ def boot(args, mode):
             child.stdout.close()
 
 
+def audit_stacks(args):
+    spec = importlib.util.spec_from_file_location(
+        'stack_acceptance', Path(__file__).with_name('verify-stack.py'))
+    stack = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stack)
+    try:
+        for mode in (('verify',) if args.verify_only else ('write', 'verify')):
+            stack.audit_summary(args.log.with_suffix(f'.{mode}.log').read_bytes(),
+                                args.minimum_stack_remaining or 0,
+                                required_kinds=frozenset({'kernel', 'user', 'irq'}),
+                                maximum_used=args.maximum_stack_used)
+    except ValueError:
+        if args.stack_elf is not None:
+            # The acceptance VMs have exited. Diagnose a disposable snapshot
+            # with the matching ELF; no diagnostic outcome changes the failure.
+            command = [sys.executable, '-B', str(Path(__file__).with_name('watch-stack.py')),
+                       '--qemu', args.qemu, '--image', str(args.image),
+                       '--elf', str(args.stack_elf), '--config', str(args.stack_config),
+                       '--fixture', str(args.disk.parent),
+                       '--output', str(args.log.parent / 'stack-watch'),
+                       '--timeout', '90', '--minimum-remaining', '4096',
+                       '--command', '/bin/storage-probe verify',
+                       '--command', 'cp /etc/hyper/components.json /data/copied-components.json',
+                       '--command', f'vmm status {args.observed_name}',
+                       '--command', f'vmm affinity {args.observed_name} 0 0']
+            try:
+                subprocess.run(command, check=False)
+            except OSError as error:
+                print(f'Stack diagnostic unavailable: {error}', file=sys.stderr)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--qemu', required=True)
     parser.add_argument('--minimum-stack-remaining', type=int)
     parser.add_argument('--maximum-stack-used', type=int)
+    parser.add_argument('--stack-elf', type=Path, help='matching ELF for bounded failure diagnosis')
+    parser.add_argument('--stack-config', type=Path, help='configuration used to build the matching ELF')
     parser.add_argument('--require-userspace-device', action='store_true',
                         help='require the generic userspace MMIO/IRQ worker')
     parser.add_argument('--require-block-queue', action='store_true',
@@ -197,6 +231,8 @@ def main():
     for name in ('image', 'initramfs', 'disk', 'board', 'log'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
+    if (args.stack_elf is None) != (args.stack_config is None):
+        parser.error('--stack-elf and --stack-config must be supplied together')
     board = Board.load(args.board)
     io_vm = board.source['io-vm']
     args.observed_name = io_vm['name']
@@ -221,15 +257,7 @@ def main():
         boot(args, 'write')
     boot(args, 'verify')
     if args.minimum_stack_remaining is not None or args.maximum_stack_used is not None:
-        spec = importlib.util.spec_from_file_location(
-            'stack_acceptance', Path(__file__).with_name('verify-stack.py'))
-        stack = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(stack)
-        for mode in (('verify',) if args.verify_only else ('write', 'verify')):
-            stack.audit_summary(args.log.with_suffix(f'.{mode}.log').read_bytes(),
-                                args.minimum_stack_remaining or 0,
-                                required_kinds=frozenset({'kernel', 'user', 'irq'}),
-                                maximum_used=args.maximum_stack_used)
+        audit_stacks(args)
     checks = ('existing Native volume readback and interactive shell' if args.verify_only
               else 'Native board storage, cold restart and interactive shell')
     print(f'{checks} passed: {args.log.parent}')

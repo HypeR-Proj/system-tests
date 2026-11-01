@@ -6,9 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 # Native acceptance applications
 
 These programs exercise Native interfaces inside HypeR. Their source is separate
-from production applications. Formal probes use the `app/Cargo.toml` workspace
-and lockfile; standalone bootstrap probes are built statically by the stage-1
-workspace and never enter a product deployment.
+from production applications. The test repository owns `Cargo.toml` and `Cargo.lock`. Standalone init fixtures
+are selected explicitly from that workspace and linked statically; they never
+enter a product deployment.
 
 | Program | Selection | Purpose |
 | --- | --- | --- |

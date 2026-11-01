@@ -5,27 +5,27 @@ bin = [{name = "hyper-service-probe", path = "src/main.rs", test = false, bench 
 
 [package]
 name = "hyper-service-probe"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/HypeR-Proj/ci"
 publish = false
-workspace = "../../../app"
+workspace = "../.."
 
 [dependencies]
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-rt]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-component]
-workspace = true
+path = "../../../lib/component"
 
 [dependencies.hyper-service-ipc]
-workspace = true
+path = "../../../lib/service-ipc"
 
 [lints]
 

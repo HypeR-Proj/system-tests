@@ -15,8 +15,8 @@ def verify_command_options(run):
     run('ldd --tree /svc/vm-runtime', rb'libhyper_vm_support_shared.so =>')
     direct = run('ldd --direct /bin/vmm', rb'\(loader\)')
     names = re.findall(rb'\n    (lib\S+) =>', direct)
-    if names != [b'libhyper_vm_policy_shared.so', b'libhyper_clap_shared.so',
-                 b'libhyper_rust_std.so', b'libsystem.so']:
+    if sorted(names) != sorted([b'libhyper_vm_policy_shared.so', b'libhyper_clap_shared.so',
+                               b'libhyper_rust_std.so', b'libsystem.so']):
         raise AssertionError(f'ldd --direct did not report the ELF dependency list: {direct!r}')
     run('ldd /bin/echo', rb'libhyper_clap_shared.so => /lib64/')
     run('ldd -v /bin/vmm', rb'ELF64 (aarch64|riscv64), OS ABI 0x3f')

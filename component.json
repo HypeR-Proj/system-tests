@@ -4,16 +4,6 @@
   "version": 1,
   "name": "system-tests",
   "kind": "testing",
-  "packages": [
-    "hyper-fs-failure",
-    "hyper-fs-worker-probe",
-    "hyper-lifecycle-stress",
-    "hyper-retirement-probe",
-    "hyper-scheduler-bench",
-    "hyper-service-probe",
-    "hyper-terminal-probe",
-    "hyper-vm-smoke"
-  ],
   "tests": [
     [
       "python3",
@@ -211,40 +201,9 @@
   },
   "test_requires_rust": true,
   "build": {
+    "type": "native-rust",
     "requires": [
       "toolchain"
-    ],
-    "actions": {
-      "all": [
-        [
-          "python3",
-          "{workspace}/scripts/build-native-module.py",
-          "--module",
-          "{module}",
-          "--action",
-          "{action}"
-        ]
-      ],
-      "build": [
-        [
-          "python3",
-          "{workspace}/scripts/build-native-module.py",
-          "--module",
-          "{module}",
-          "--action",
-          "{action}"
-        ]
-      ],
-      "check": [
-        [
-          "python3",
-          "{workspace}/scripts/build-native-module.py",
-          "--module",
-          "{module}",
-          "--action",
-          "{action}"
-        ]
-      ]
-    }
+    ]
   }
 }

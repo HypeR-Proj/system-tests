@@ -10,3 +10,6 @@ __pycache__/
 
 # The manifest links build-tool unit tests from the build repository.
 /build
+
+!/Cargo.lock
+!/tests/link/Cargo.lock

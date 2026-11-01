@@ -5,24 +5,24 @@ bin = [{name = "hyper-lifecycle-stress", path = "src/main.rs", test = false, ben
 
 [package]
 name = "hyper-lifecycle-stress"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/HypeR-Proj/ci"
 publish = false
-workspace = "../../../app"
+workspace = "../.."
 
 [dependencies]
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-rt]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-service]
-workspace = true
+path = "../../../lib/service"
 
 [lints]
 

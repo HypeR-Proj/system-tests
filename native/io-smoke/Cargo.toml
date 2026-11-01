@@ -4,7 +4,7 @@
 
 [package]
 name = "hyper-io-smoke"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 publish = false
@@ -23,15 +23,12 @@ version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-vm-image]
-version = "=0.0.0"
 path = "../../../lib/vm-image"
 
 [dependencies.hyper-vm-policy]
-version = "=0.0.0"
 path = "../../../lib/vm-policy"
 
 [dependencies.hyper-vm-support]
-version = "=0.0.0"
 path = "../../../lib/vm-support"
 
 [lints]

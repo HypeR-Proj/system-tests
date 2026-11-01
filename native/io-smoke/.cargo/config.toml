@@ -11,3 +11,6 @@ hyper-os = { path = "../../../stdlib/rust/hyper-os" }
 hyper-rt = { path = "../../../stdlib/rust/hyper-rt" }
 hyper-sys = { path = "../../../stdlib/rust/hyper-sys" }
 hyper-filesystem = { path = "../../../stdlib/rust/hyper-filesystem" }
+
+[env]
+HYPER_LINK_MODE = "static"

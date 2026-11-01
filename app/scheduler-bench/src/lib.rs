@@ -6,3 +6,6 @@ pub mod config;
 #[cfg(target_os = "hyper")]
 pub mod native;
 pub mod stats;
+
+#[cfg(target_os = "hyper")]
+extern crate hyper_clap_shared as clap;

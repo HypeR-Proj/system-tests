@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-#[cfg(target_os = "hyper")]
-extern crate hyper_clap_shared as _;
 use hyper_scheduler_bench::config::Cli;
 #[cfg(target_os = "hyper")]
 use hyper_scheduler_bench::config::Command;
@@ -24,3 +22,6 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+#[cfg(target_os = "hyper")]
+extern crate hyper_clap_shared as clap;

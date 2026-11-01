@@ -5,31 +5,31 @@ bin = [{name = "hyper-fs-failure", path = "src/main.rs", test = false, bench = f
 
 [package]
 name = "hyper-fs-failure"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/HypeR-Proj/ci"
 publish = false
-workspace = "../../../app"
+workspace = "../.."
 
 [dependencies]
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-rt]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-fs-service]
-workspace = true
+path = "../../../lib/fs-service"
 
 [dependencies.hyper-service]
-workspace = true
+path = "../../../lib/service"
 
 [dependencies.hyper-filesystem]
-workspace = true
+version = "=0.0.0"
 
 [lints]
 

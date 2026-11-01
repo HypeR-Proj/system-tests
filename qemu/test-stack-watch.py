@@ -8,6 +8,7 @@ import importlib.util
 from pathlib import Path
 import socket
 import struct
+import tempfile
 import time
 import unittest
 
@@ -42,6 +43,19 @@ class Memory:
 
 
 class StackWatchTests(unittest.TestCase):
+    def test_explicit_fixture_never_falls_back_to_an_unrelated_disk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected, other = root / 'selected', root / 'other'
+            for fixture in (selected, other):
+                fixture.mkdir()
+                for name in ('bootstrap.cpio', 'disk.img', 'deployment.json'):
+                    (fixture / name).touch()
+            self.assertEqual(watch.select_fixture(root, selected), selected)
+            (selected / 'disk.img').unlink()
+            with self.assertRaisesRegex(ValueError, 'selected board fixture is incomplete'):
+                watch.select_fixture(root, selected)
+
     def test_remote_checksum_fragmentation_and_request_acknowledgement(self):
         stream = Stream(b'+$OK#9a')
         self.assertEqual(watch.Remote(stream).request('?'), 'OK')
