@@ -167,16 +167,26 @@ def symbolize(captures, table, base):
                 capture['instruction'] = frame
 
 
+def select_fixture(fixtures, selected=None):
+    def complete(path):
+        return all((path / name).is_file()
+                   for name in ('bootstrap.cpio', 'disk.img', 'deployment.json'))
+    if selected is not None:
+        if not complete(selected):
+            raise ValueError('selected board fixture is incomplete')
+        return selected
+    candidates = [p.parent for p in fixtures.glob('*/bootstrap.cpio') if complete(p.parent)]
+    if not candidates:
+        raise ValueError('no complete board fixture available for stack diagnosis')
+    return max(candidates, key=lambda p: (p / 'bootstrap.cpio').stat().st_mtime_ns)
+
+
 def run(args, report):
     settings = set(args.config.read_text().splitlines())
     if not {'CONFIG_ARCH_AARCH64=y', 'CONFIG_ARM64_VA_BITS=48',
             'CONFIG_KERNEL_STACK_SIZE_KB=16'} <= settings:
         raise ValueError('stack watch requires the AArch64 48-bit, 16 KiB CI configuration')
-    fixtures = [p.parent for p in args.fixtures.glob('*/bootstrap.cpio')
-                if all((p.parent / name).is_file() for name in ('disk.img', 'deployment.json'))]
-    if not fixtures:
-        raise ValueError('no complete board fixture available for stack diagnosis')
-    fixture = max(fixtures, key=lambda p: (p / 'bootstrap.cpio').stat().st_mtime_ns)
+    fixture = select_fixture(args.fixtures, args.fixture)
     report['fixture'] = str(fixture)
     table = symbols(args.elf)
     endpoint = args.output.resolve() / 'qemu.sock'
@@ -304,7 +314,9 @@ def main():
     parser.add_argument('--image', type=Path, required=True)
     parser.add_argument('--elf', type=Path, required=True)
     parser.add_argument('--config', type=Path, required=True)
-    parser.add_argument('--fixtures', type=Path, default=ROOT / 'target/board-tests')
+    fixtures = parser.add_mutually_exclusive_group(required=True)
+    fixtures.add_argument('--fixtures', type=Path, help='select the newest complete fixture below this directory')
+    fixtures.add_argument('--fixture', type=Path, help='use this exact complete board fixture')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--timeout', type=float, default=90)
     parser.add_argument('--minimum-remaining', type=int, default=2048)
