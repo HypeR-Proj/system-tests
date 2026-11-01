@@ -155,7 +155,7 @@ test-vm-smoke: image app-fetch $(NEWC_PACK)
 	CARGO_TARGET_DIR="$(APP_BOOT_CARGO_OUTPUT)" HYPER_LINK_MODE=static HYPER_ARCH="$(NATIVE_ARCH)" \
 		HYPER_SYSROOT="$(SDK_OUTPUT)" HYPER_RUST_STD=1 \
 		HYPER_CLANG="$(CLANG)" HYPER_LD="$(HYPER_LD)" \
-		"$(SDK_OUTPUT)/bin/hyper-cargo" build --manifest-path app/Cargo.toml \
+		"$(SDK_OUTPUT)/bin/hyper-cargo" build --manifest-path tests/Cargo.toml \
 		-p hyper-vm-smoke --release --locked --offline
 	mkdir -p "$(APP_OUTPUT)"
 	python3 -B scripts/pack-native-initramfs.py \
@@ -177,7 +177,7 @@ test-filesystem-failure: image app-fetch $(NEWC_PACK)
 	CARGO_TARGET_DIR="$(APP_BOOT_CARGO_OUTPUT)" HYPER_LINK_MODE=static HYPER_ARCH="$(NATIVE_ARCH)" \
 		HYPER_SYSROOT="$(SDK_OUTPUT)" HYPER_RUST_STD=1 \
 		HYPER_CLANG="$(CLANG)" HYPER_LD="$(HYPER_LD)" \
-		"$(SDK_OUTPUT)/bin/hyper-cargo" build --manifest-path app/Cargo.toml \
+		"$(SDK_OUTPUT)/bin/hyper-cargo" build --manifest-path tests/Cargo.toml \
 		-p hyper-fs-failure --release --locked --offline
 	mkdir -p "$(APP_OUTPUT)"
 	python3 -B scripts/pack-native-initramfs.py \

@@ -5,30 +5,30 @@ bin = [{name = "hyper-fs-worker-probe", path = "src/main.rs", test = false, benc
 
 [package]
 name = "hyper-fs-worker-probe"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 publish = false
 repository = "https://github.com/HypeR-Proj/ci"
-workspace = "../../../app"
+workspace = "../.."
 
 [dependencies]
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-rt]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [dependencies.hyper-filesystem]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-fs-service]
-workspace = true
+path = "../../../lib/fs-service"
 
 [dependencies.hyper-service]
-workspace = true
+path = "../../../lib/service"
 
 [lints]
 

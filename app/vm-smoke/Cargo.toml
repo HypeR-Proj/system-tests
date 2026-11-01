@@ -5,21 +5,21 @@ bin = [{name = "hyper-vm-smoke", path = "src/main.rs", test = false, bench = fal
 
 [package]
 name = "hyper-vm-smoke"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/HypeR-Proj/ci"
 publish = false
 autotests = false
-workspace = "../../../app"
+workspace = "../.."
 
 [dependencies]
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-rt]
-workspace = true
+version = "=0.0.0"
 features = ["std"]
 
 [lints]
