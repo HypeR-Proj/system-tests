@@ -31,7 +31,7 @@ curl --fail --location \
 curl --fail --location \
   https://raw.githubusercontent.com/esnet/iperf/3.19.1/LICENSE \
   -o target/hardware-tools/iperf3-3.19.1-LICENSE
-python3 -B tests/hardware/network/prepare.py \
+python3 project.py exec -- python3 -B tests/hardware/network/prepare.py \
   --base target/board/rpi5-storage-qualification \
   --package target/hardware-tools/iperf3-3.19.1-r1.apk \
   --license target/hardware-tools/iperf3-3.19.1-LICENSE \
