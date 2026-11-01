@@ -68,5 +68,5 @@ features = ["derive"]
 [target."cfg(not(target_os = \"hyper\"))".dependencies]
 
 [target."cfg(not(target_os = \"hyper\"))".dependencies.clap]
-version = "=4.6.6"
+version = "4"
 features = ["derive"]
