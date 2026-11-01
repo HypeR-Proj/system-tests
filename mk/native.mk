@@ -7,7 +7,7 @@
 
 fit-pack:
 	CARGO_TARGET_DIR="$(FIT_PACK_TARGET)" $(CARGO) build \
-		--manifest-path "tools/fit-pack/Cargo.toml" --release
+		--manifest-path "$(FIT_PACK_SOURCE)/Cargo.toml" --release
 
 guest-itb: fit-pack
 	@test "$(NATIVE_TEST_VM)" = 1 || { echo "guest images are not implemented for $(ARCH)" >&2; exit 2; }
