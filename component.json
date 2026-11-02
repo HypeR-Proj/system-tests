@@ -42,6 +42,10 @@
     {
       "manifest": "app/vm-smoke/Cargo.toml",
       "domain": "system"
+    },
+    {
+      "manifest": "app/f2fs-smoke/Cargo.toml",
+      "domain": "system"
     }
   ],
   "artifacts": [
@@ -191,6 +195,19 @@
         "development"
       ],
       "environment": "system"
+    },
+    {
+      "binary": "hyper-f2fs-smoke",
+      "staged": "f2fs-smoke",
+      "destination": "bin/f2fs-smoke",
+      "mode": "0755",
+      "profiles": [
+        "development"
+      ],
+      "rust_runtime": "std",
+      "environment": "system",
+      "manifest": "app/f2fs-smoke/Cargo.toml",
+      "enabled": false
     }
   ],
   "workspace": {

@@ -144,6 +144,22 @@ name = "hyper-filesystem"
 version = "0.0.0"
 
 [[package]]
+name = "hyper-f2fs-smoke"
+version = "0.1.0"
+dependencies = [
+ "hyper-fs-f2fs",
+ "hyper-os",
+ "hyper-rt",
+]
+
+[[package]]
+name = "hyper-fs-f2fs"
+version = "0.1.0"
+dependencies = [
+ "hyper-os",
+]
+
+[[package]]
 name = "hyper-fs-failure"
 version = "0.1.0"
 dependencies = [

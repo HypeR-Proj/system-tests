@@ -5,7 +5,7 @@
 [workspace]
 resolver = "3"
 exclude = ["native/io-smoke"]
-members = ["app/fs-failure", "app/fs-worker-probe", "app/lifecycle-stress", "app/retirement-probe", "app/scheduler-bench", "app/service-probe", "app/terminal-probe", "app/vm-smoke"]
+members = ["app/f2fs-smoke", "app/fs-failure", "app/fs-worker-probe", "app/lifecycle-stress", "app/retirement-probe", "app/scheduler-bench", "app/service-probe", "app/terminal-probe", "app/vm-smoke"]
 
 [profile]
 
