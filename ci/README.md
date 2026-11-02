@@ -102,12 +102,31 @@ before skipping build prerequisites. They contain only immutable images, never
 a shared mutable disk or compiler cache.
 Feature-specific fixtures keep their trap, stack and failure-injection variants.
 The `native-gicv2`, `native-smp-stack`, `native-services` and `riscv64-vm`
-aggregates are local entry points, not CI jobs. CI registers their independent
-runtime cases so one long serial aggregate cannot hold up the entire run.
+aggregates are local entry points. CI registers their independent runtime cases
+and assigns compatible cases to bounded execution batches. The framework runs
+each case separately in the batch, retains its result and diagnostics, and fails
+the batch if any member fails. The ordinary single-case entry points still work
+from a cold build directory; no member depends on another member's side effects.
 GICv2 runtime-crash and SMP retirement still build their own injected binaries;
 they do not consume the ordinary or SMP images as substitutes for fault fixtures.
 Each board suite runs independently; the broker keeps its ordered lifecycle
 scenario in one job. Logs are retained as separate diagnostic artifacts.
+
+Batch policy lives in the case definitions, not in GitHub workflow code. Fifteen
+standalone batches and two immutable-image producers start first, fitting below
+the 20-worker limit. Eight fixture-consumer batches become runnable after image
+publication. Long broker and storage-recovery cases remain separate; compatible
+short cases share SDK, userspace and guest build caches. This reduces cold builds
+without reducing test rounds or combining mutable disks. The case inventory and
+all individual architecture/CPU variants remain unchanged. New cases default to
+their own worker unless their owner explicitly assigns a compatible batch.
+
+Runtime-crash acceptance builds only its injected archives. Fleet admission and
+storage recovery likewise build their actual target prerequisites directly;
+none requires a discarded ordinary Native image as a preparation side effect.
+The shared diagnostic patterns are declared in this repository's component
+metadata. They retain overwritten serial logs and command transcripts for every
+batch member; the whole `OUT/results` tree is published by CI.
 
 Guest SMP acceptance treats Linux soft-lockup watchdog reports as failures before
 filtering ordinary guest printk output. After failure it attempts bounded,

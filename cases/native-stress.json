@@ -26,5 +26,6 @@
         "CI_STRESS_CPUS": "4"
       }
     }
-  ]
+  ],
+  "batch": "native-control"
 }

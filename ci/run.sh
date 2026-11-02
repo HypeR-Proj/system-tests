@@ -168,12 +168,10 @@ case "${1:-}" in
         make "test-${1#native-}" ARCH=aarch64
         ;;
     native-fleet)
-        make image native-initramfs ARCH=aarch64
-        make -o image -o app test-fleet-config ARCH=aarch64
+        make test-fleet-config ARCH=aarch64
         ;;
     native-storage-recovery)
-        make image native-initramfs ARCH=aarch64
-        make -o image -o app test-storage-failure ARCH=aarch64
+        make test-storage-failure ARCH=aarch64
         ;;
     native-filesystem)
         make test-filesystem-failure ARCH=aarch64 QEMU_CPU=max,cntfrq=54000000
@@ -216,11 +214,10 @@ case "${1:-}" in
         cp target/app/aarch64/guest-smp.log target/app/aarch64/native-gicv2-guest-smp.log
         ;;
     native-smp-gicv2-retirement)
-        make image guest-smp-initramfs ARCH=aarch64
         # Reuse the abrupt runtime-exit fixture with the SMP topology. It may
         # exit before every secondary has booted; retirement must include all
         # configured dormant and running CPU Threads in either case.
-        make -o image -o native-initramfs test-runtime-crash ARCH=aarch64 \
+        make test-runtime-crash ARCH=aarch64 \
             QEMU_MACHINE=virt,virtualization=on,gic-version=2 QEMU_CPUS=4 \
             NATIVE_VM_CONFIG="$root/bootstrap/stage1/init/tests/config/vms-smp-4.json" \
             NATIVE_GUEST_ITB="$root/kernel/target/guest/aarch64/alpine-smp.itb"
@@ -323,8 +320,7 @@ case "${1:-}" in
         done
         ;;
     riscv64-fleet)
-        make image native-initramfs ARCH=riscv64
-        make -o image -o app test-fleet-config ARCH=riscv64
+        make test-fleet-config ARCH=riscv64
         ;;
     riscv64-vm-smoke)
         make test-vm-smoke ARCH=riscv64 QEMU_CPUS=4

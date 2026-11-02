@@ -213,7 +213,12 @@
   "workspace": {
     "system_tests": {
       "cases": "cases",
-      "fixtures": "fixtures.json"
+      "fixtures": "fixtures.json",
+      "diagnostics": [
+        "{workspace}/target/app/{arch}/**/*.log*",
+        "{workspace}/target/stack-audit/{arch}/**/*.log*",
+        "{workspace}/target/board/**/*.log*"
+      ]
     }
   },
   "test_requires_rust": true,

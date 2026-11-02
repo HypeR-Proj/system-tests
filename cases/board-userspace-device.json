@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "board-userspace-device"
-  ]
+  ],
+  "batch": "board-startup"
 }

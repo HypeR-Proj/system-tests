@@ -13,5 +13,6 @@
   ],
   "environment": {
     "QEMU_MACHINE": "virt,virtualization=on,gic-version=2,dtb-randomness=on"
-  }
+  },
+  "batch": "vm-retirement"
 }

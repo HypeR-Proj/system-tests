@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "io-network-mmio"
-  ]
+  ],
+  "batch": "io-network"
 }

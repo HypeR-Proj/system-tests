@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-boot-profiles"
-  ]
+  ],
+  "batch": "service-lifecycle"
 }

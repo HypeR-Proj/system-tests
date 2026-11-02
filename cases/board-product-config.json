@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "board-product-config"
-  ]
+  ],
+  "batch": "service-product"
 }

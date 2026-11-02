@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "riscv64-fleet"
-  ]
+  ],
+  "batch": "riscv64-fleet"
 }

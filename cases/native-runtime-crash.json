@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-runtime-crash"
-  ]
+  ],
+  "batch": "vm-retirement"
 }

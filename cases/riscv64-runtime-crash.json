@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "riscv64-runtime-crash"
-  ]
+  ],
+  "batch": "riscv64-retirement"
 }

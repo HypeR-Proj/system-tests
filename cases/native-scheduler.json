@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-scheduler"
-  ]
+  ],
+  "batch": "profiling-scheduler"
 }
