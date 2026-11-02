@@ -12,5 +12,6 @@
     "tests/ci/run.sh",
     "native-terminal"
   ],
-  "fixture": "native"
+  "fixture": "native",
+  "batch": "native-interactive"
 }

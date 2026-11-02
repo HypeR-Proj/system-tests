@@ -11,5 +11,6 @@
     "tests/ci/run.sh",
     "native-smp-overcommit"
   ],
-  "fixture": "native"
+  "fixture": "native",
+  "batch": "guest-smp"
 }

@@ -11,5 +11,9 @@
     "sh",
     "tests/ci/run.sh",
     "native-stack-audit"
-  ]
+  ],
+  "batch": {
+    "aarch64": "power-stack",
+    "riscv64": "riscv64-fleet"
+  }
 }

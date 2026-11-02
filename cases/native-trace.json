@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-trace"
-  ]
+  ],
+  "batch": "profiling-vm"
 }

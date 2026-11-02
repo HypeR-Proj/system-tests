@@ -12,5 +12,6 @@
     "tests/ci/run.sh",
     "native-shell"
   ],
-  "fixture": "native"
+  "fixture": "native",
+  "batch": "native-interactive"
 }

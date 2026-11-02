@@ -11,5 +11,6 @@
     "tests/ci/run.sh",
     "native-smp-gicv2-guest"
   ],
-  "fixture": "native"
+  "fixture": "native",
+  "batch": "guest-smp"
 }

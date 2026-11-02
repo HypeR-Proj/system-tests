@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-filesystem"
-  ]
+  ],
+  "batch": "io-and-filesystem"
 }

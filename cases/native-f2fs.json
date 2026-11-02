@@ -9,5 +9,6 @@
   "command": [
     "python3",
     "tests/fs-f2fs/run.py"
-  ]
+  ],
+  "batch": "io-and-filesystem"
 }

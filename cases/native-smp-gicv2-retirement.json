@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "native-smp-gicv2-retirement"
-  ]
+  ],
+  "batch": "vm-retirement"
 }

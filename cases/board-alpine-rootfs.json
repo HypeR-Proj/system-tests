@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "board-alpine-rootfs"
-  ]
+  ],
+  "batch": "board-storage"
 }

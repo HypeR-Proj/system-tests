@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "board-storage-media"
-  ]
+  ],
+  "batch": "board-storage"
 }

@@ -12,5 +12,6 @@
     "tests/ci/run.sh",
     "native-boot"
   ],
-  "fixture": "native"
+  "fixture": "native",
+  "batch": "native-control"
 }

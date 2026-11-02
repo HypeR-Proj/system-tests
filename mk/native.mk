@@ -229,7 +229,9 @@ test-io-vm: image app-fetch fit-pack $(NEWC_PACK)
 		--log "$(APP_OUTPUT)/io-vm-$(IO_VM_TEST)-$(QEMU_CPUS).log" --test "$(IO_VM_TEST)"
 
 # Explicit fixture target; ordinary app builds never enable this feature.
-test-runtime-crash: image native-initramfs
+# Only the injected archives below are consumed. Building an ordinary Native
+# archive first compiles a second userspace variant without testing that image.
+test-runtime-crash: image app-fetch $(NEWC_PACK)
 	@test "$(NATIVE_TEST_VM)" = 1 || { echo "VM runtime acceptance is not implemented for $(ARCH)" >&2; exit 2; }
 	python3 -B tests/qemu/vm_fixtures.py "$(NATIVE_VM_CONFIG)" "$(APP_OUTPUT)/fleet-fixtures"
 	$(MAKE) -o app-fetch app APP_OUTPUT="$(APP_OUTPUT)/runtime-crash-apps" \

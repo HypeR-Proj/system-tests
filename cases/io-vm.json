@@ -10,5 +10,6 @@
     "sh",
     "tests/ci/run.sh",
     "io-vm"
-  ]
+  ],
+  "batch": "io-and-filesystem"
 }
