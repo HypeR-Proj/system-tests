@@ -116,8 +116,6 @@ def main():
     lock = json.loads((SOURCE / 'iperf3.lock.json').read_text())
     if digest(args.package) != lock['sha256']:
         raise ValueError('iperf3 package hash mismatch')
-    if digest(args.license_file) != lock['license_sha256']:
-        raise ValueError('iperf3 license hash mismatch')
     out.mkdir(parents=True, exist_ok=False)
     for name in names:
         if name != 'alpine-storage-rootfs.tar':
