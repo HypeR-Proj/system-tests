@@ -51,7 +51,7 @@ def run(args):
             '--image', ROOT / 'kernel/target/aarch64-unknown-none-softfloat/kernel/hyper.img',
             '--initramfs', fixture / 'bootstrap.cpio', '--disk', fixture / 'disk.img',
             '--board', fixture / 'deployment.json', '--log', fixture / 'run.log')
-    print(f'F2FS working-branch acceptance passed: {fixture}')
+    print(f'F2FS acceptance passed: {fixture}')
 
 
 if __name__ == '__main__':
