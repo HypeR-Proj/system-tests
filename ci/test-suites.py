@@ -87,6 +87,70 @@ if 'scripts/fetch-io-vm.py' in sys.argv:
         calls = self.run_suite('native-shell')
         self.assertEqual(calls, [['make', 'test-shell', 'ARCH=aarch64']])
 
+    def test_smp_consumers_share_images_but_retain_host_topology(self):
+        for suite, cpus, machine in (
+                ('native-smp-gicv3', 4, None),
+                ('native-smp-gicv2-guest', 4, 'virt,virtualization=on,gic-version=2'),
+                ('native-smp-overcommit', 1, None)):
+            with self.subTest(suite=suite):
+                calls = self.run_suite(suite, CI_NATIVE_FIXTURE='/fixture/smp')
+                self.assertIn('check', calls[0])
+                self.assertEqual(calls[0][calls[0].index('--arch') + 1], 'aarch64')
+                make, = [call for call in calls if call[0] == 'make']
+                self.assertEqual(make[1:6], ['-o', 'image', '-o', 'guest-smp-initramfs', 'test-guest-smp'])
+                self.assertIn('KERNEL_IMAGE=/fixture/smp/hyper.img', make)
+                self.assertIn('NATIVE_SMP_INITRAMFS=/fixture/smp/initramfs-smp.cpio', make)
+                self.assertIn(f'QEMU_CPUS={cpus}', make)
+                if machine:
+                    self.assertIn(f'QEMU_MACHINE={machine}', make)
+
+    def test_shared_producer_builds_both_aarch64_archives_in_one_make(self):
+        for arch in ('aarch64', 'riscv64'):
+            calls = self.run_suite('native-fixture', CI_ARCH=arch)
+            make, = [call for call in calls if call[0] == 'make']
+            self.assertIn('image', make)
+            self.assertIn('native-initramfs', make)
+            self.assertEqual('guest-smp-initramfs' in make, arch == 'aarch64')
+            self.assertIn(f'ARCH={arch}', make)
+            self.assertIn('pack', calls[-1])
+
+    def test_registered_shards_preserve_aggregate_runtime_coverage(self):
+        registry = {data['id']: data for path in (ROOT / 'tests/cases').glob('*.json')
+                    for data in [json.loads(path.read_bytes())]}
+        groups = {
+            'native-gicv2': ['native-gicv2-boot', 'native-gicv2-console', 'native-gicv2-runtime-crash'],
+            'native-smp-stack': ['native-smp-gicv3', 'native-smp-gicv2-guest',
+                                 'native-smp-gicv2-retirement', 'native-smp-overcommit',
+                                 'native-power-retirement', 'native-stack-audit'],
+            'native-services': ['native-service-lifecycle', 'native-service-failure', 'native-boot-profiles'],
+            'riscv64-vm': ['riscv64-fleet', 'riscv64-vm-smoke', 'riscv64-runtime-crash', 'native-stack-audit'],
+        }
+        def runtime_calls(calls):
+            return sorted((target, next(arg for arg in call if arg.startswith('ARCH=')),
+                           next((arg for arg in call if arg.startswith('QEMU_CPUS=')), 'default'))
+                          for call in calls if call[0] == 'make'
+                          for target in call if target.startswith('test-'))
+        for aggregate, shards in groups.items():
+            with self.subTest(aggregate=aggregate):
+                self.assertNotIn(aggregate, registry)
+                arch = 'riscv64' if aggregate.startswith('riscv64') else 'aarch64'
+                calls = []
+                for name in shards:
+                    case = registry[name]
+                    self.assertIn(arch, case['architectures'])
+                    calls.extend(self.run_suite(case['command'][-1], CI_ARCH=arch,
+                                                **case.get('environment', {})))
+                self.assertEqual(runtime_calls(calls), runtime_calls(self.run_suite(aggregate)))
+        for name in ('native-gicv2-boot', 'native-gicv2-console'):
+            self.assertEqual(registry[name]['fixture'], 'native')
+        for name in ('native-smp-gicv3', 'native-smp-gicv2-guest', 'native-smp-overcommit'):
+            self.assertEqual(registry[name]['fixture'], 'native')
+        for name in groups['native-gicv2']:
+            self.assertEqual(registry[name]['environment']['QEMU_MACHINE'],
+                             'virt,virtualization=on,gic-version=2,dtb-randomness=on')
+        for name in ('native-smp-gicv2-retirement', 'native-power-retirement', 'native-stack-audit'):
+            self.assertNotIn('fixture', registry[name])
+
     def test_selected_appliance_is_used_without_registry_lookup(self):
         for suite in ('io-vm', 'io-network', 'io-network-mmio', 'board-storage'):
             with self.subTest(suite=suite):

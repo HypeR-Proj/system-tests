@@ -40,8 +40,8 @@ prepare_aarch64_stack16_config() {
         kernel/configs/qemu_aarch64_defconfig >"$stack_config"
 }
 
-# Only the ordinary boot/interactive probes share immutable images. Feature,
-# topology and failure fixtures keep their own builds and mutable disks.
+# Share only immutable images with an exact source/configuration identity.
+# Fault injection and stack instrumentation keep independent builds and disks.
 run_native_probe() {
     arch=${CI_ARCH:-aarch64}
     case "$arch" in aarch64|riscv64) ;; *) usage ;; esac
@@ -54,6 +54,19 @@ run_native_probe() {
             NATIVE_INITRAMFS="$CI_NATIVE_FIXTURE/initramfs.cpio"
     else
         make "$@" ARCH="$arch"
+    fi
+}
+
+run_smp_probe() {
+    if [ -n "${CI_NATIVE_FIXTURE:-}" ]; then
+        python3 -B tests/ci/native-fixture.py check --arch aarch64 \
+            --directory "$CI_NATIVE_FIXTURE"
+        mkdir -p target/app/aarch64
+        make -o image -o guest-smp-initramfs test-guest-smp ARCH=aarch64 "$@" \
+            KERNEL_IMAGE="$CI_NATIVE_FIXTURE/hyper.img" \
+            NATIVE_SMP_INITRAMFS="$CI_NATIVE_FIXTURE/initramfs-smp.cpio"
+    else
+        make test-guest-smp ARCH=aarch64 "$@"
     fi
 }
 
@@ -92,7 +105,11 @@ case "${1:-}" in
     native-fixture)
         arch=${CI_ARCH:-aarch64}
         case "$arch" in aarch64|riscv64) ;; *) usage ;; esac
-        make image native-initramfs ARCH="$arch"
+        if [ "$arch" = aarch64 ]; then
+            make image native-initramfs guest-smp-initramfs ARCH="$arch"
+        else
+            make image native-initramfs ARCH="$arch"
+        fi
         python3 -B tests/ci/native-fixture.py pack --arch "$arch" \
             --directory "${CI_NATIVE_FIXTURE_OUTPUT:-target/ci/native-$arch}"
         ;;
@@ -140,10 +157,15 @@ case "${1:-}" in
         run_native_probe "test-${1#native-}"
         ;;
     native-services)
-        make test-services ARCH=aarch64
-        make test-process-retirement ARCH=aarch64
-        make test-service-failure ARCH=aarch64
-        make test-boot-profiles ARCH=aarch64
+        for shard in native-service-lifecycle native-service-failure native-boot-profiles; do
+            sh tests/ci/run.sh "$shard"
+        done
+        ;;
+    native-service-lifecycle)
+        make test-services test-process-retirement ARCH=aarch64
+        ;;
+    native-service-failure|native-boot-profiles)
+        make "test-${1#native-}" ARCH=aarch64
         ;;
     native-fleet)
         make image native-initramfs ARCH=aarch64
@@ -181,7 +203,7 @@ case "${1:-}" in
         done
         ;;
     native-smp-gicv3)
-        make test-guest-smp ARCH=aarch64 QEMU_CPUS=4
+        run_smp_probe QEMU_CPUS=4
         cp target/app/aarch64/guest-smp.log target/app/aarch64/native-gicv3-guest-smp.log
         ;;
     native-smp-gicv2)
@@ -189,7 +211,7 @@ case "${1:-}" in
         sh tests/ci/run.sh native-smp-gicv2-retirement
         ;;
     native-smp-gicv2-guest)
-        make test-guest-smp ARCH=aarch64 \
+        run_smp_probe \
             QEMU_MACHINE=virt,virtualization=on,gic-version=2 QEMU_CPUS=4
         cp target/app/aarch64/guest-smp.log target/app/aarch64/native-gicv2-guest-smp.log
         ;;
@@ -205,12 +227,20 @@ case "${1:-}" in
         cp target/app/aarch64/runtime-crash.log target/app/aarch64/native-gicv2-guest-smp-runtime-crash.log
         ;;
     native-smp-overcommit)
-        make test-guest-smp ARCH=aarch64 QEMU_CPUS=1
+        run_smp_probe QEMU_CPUS=1
         cp target/app/aarch64/guest-smp.log target/app/aarch64/native-gicv3-guest-smp-overcommit.log
         ;;
     native-retirement-stack)
+        sh tests/ci/run.sh native-power-retirement
+        sh tests/ci/run.sh native-stack-audit
+        ;;
+    native-power-retirement)
         make test-power-crash ARCH=aarch64 QEMU_CPUS=4
-        make test-stack ARCH=aarch64
+        ;;
+    native-stack-audit)
+        arch=${CI_ARCH:-aarch64}
+        case "$arch" in aarch64|riscv64) ;; *) usage ;; esac
+        make test-stack ARCH="$arch"
         ;;
     native-stack-16k)
         prepare_aarch64_stack16_config
@@ -288,12 +318,20 @@ case "${1:-}" in
         sh tests/ci/run.sh riscv64-vm
         ;;
     riscv64-vm)
+        for shard in riscv64-fleet riscv64-vm-smoke riscv64-runtime-crash native-stack-audit; do
+            CI_ARCH=riscv64 sh tests/ci/run.sh "$shard"
+        done
+        ;;
+    riscv64-fleet)
         make image native-initramfs ARCH=riscv64
         make -o image -o app test-fleet-config ARCH=riscv64
-        make -o image test-vm-smoke ARCH=riscv64 QEMU_CPUS=4
+        ;;
+    riscv64-vm-smoke)
+        make test-vm-smoke ARCH=riscv64 QEMU_CPUS=4
         make -o image test-vm-smoke ARCH=riscv64 QEMU_CPUS=1
-        make -o image -o native-initramfs test-runtime-crash ARCH=riscv64
-        make test-stack ARCH=riscv64
+        ;;
+    riscv64-runtime-crash)
+        make test-runtime-crash ARCH=riscv64
         ;;
     *)
         usage

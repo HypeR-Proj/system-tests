@@ -28,6 +28,21 @@ class FixtureTests(unittest.TestCase):
             archive = self.root / 'target/app' / arch / 'initramfs.cpio'
             archive.parent.mkdir(parents=True)
             archive.write_bytes(arch.encode() + b' archive')
+            archive.with_name('initramfs-smp.cpio').write_bytes(b'SMP archive')
+
+    def test_smp_archive_remains_distinct_in_the_shared_aarch64_bundle(self):
+        fixture.publish(self.root, self.output, 'aarch64', 'revision-a')
+        fixture.verify(self.output, 'aarch64', 'revision-a')
+        self.assertEqual((self.output / 'initramfs-smp.cpio').read_bytes(), b'SMP archive')
+        self.assertEqual((self.output / 'initramfs.cpio').read_bytes(), b'aarch64 archive')
+        (self.output / 'initramfs-smp.cpio').write_bytes(b'aarch64 archive')
+        with self.assertRaises(ValueError):
+            fixture.verify(self.output, 'aarch64', 'revision-a')
+
+    def test_riscv_fixture_does_not_require_an_unsupported_smp_archive(self):
+        fixture.publish(self.root, self.output, 'riscv64', 'revision-a')
+        manifest = json.loads((self.output / 'manifest.json').read_text())
+        self.assertEqual(set(manifest['files']), set(fixture.FILES))
 
     def test_round_trip_both_architectures(self):
         for arch in fixture.TARGETS:
@@ -53,7 +68,7 @@ class FixtureTests(unittest.TestCase):
                 fixture.verify(self.output, arch, revision)
 
     def test_reject_corrupt_missing_empty_or_symlinked_images(self):
-        for name in fixture.FILES:
+        for name in fixture.files('aarch64'):
             for damage in ('corrupt', 'missing', 'empty', 'symlink'):
                 with self.subTest(name=name, damage=damage):
                     fixture.publish(self.root, self.output, 'aarch64', 'revision-a')
