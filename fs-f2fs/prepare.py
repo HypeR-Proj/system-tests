@@ -56,11 +56,11 @@ def prepare(args):
     if not notices.resolve().is_relative_to(system.resolve()):
         raise ValueError('license destination escapes fixture system root')
     notices.mkdir(parents=True, exist_ok=True)
-    manifest = json.loads((ROOT / 'lib/fs-f2fs/licenses/manifest.json').read_text())
+    manifest = json.loads((ROOT / 'svc/fs-f2fs/licenses/manifest.json').read_text())
     for name in manifest['files']:
         install(ROOT / name, notices / Path(name).name)
     media = output / 'f2fs.img'
-    subprocess.run([sys.executable, str(ROOT / 'lib/fs-f2fs/host.py'),
+    subprocess.run([sys.executable, str(ROOT / 'svc/fs-f2fs/host.py'),
                     '--library', str(args.library.resolve()), '--output', str(media),
                     '--size-mib', str(data[0].sectors * SECTOR // MIB)], check=True)
     with disk.open('r+b') as target, media.open('rb') as source:
