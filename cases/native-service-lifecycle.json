@@ -2,13 +2,13 @@
   "SPDX-FileCopyrightText": "2026 roolrz",
   "SPDX-License-Identifier": "Apache-2.0",
   "version": 1,
-  "id": "native-gicv2",
+  "id": "native-service-lifecycle",
   "architectures": [
     "aarch64"
   ],
   "command": [
     "sh",
     "tests/ci/run.sh",
-    "native-gicv2"
+    "native-service-lifecycle"
   ]
 }

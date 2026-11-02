@@ -1,0 +1,18 @@
+{
+  "SPDX-FileCopyrightText": "2026 roolrz",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "version": 1,
+  "id": "native-gicv2-console",
+  "architectures": [
+    "aarch64"
+  ],
+  "command": [
+    "sh",
+    "tests/ci/run.sh",
+    "native-console"
+  ],
+  "fixture": "native",
+  "environment": {
+    "QEMU_MACHINE": "virt,virtualization=on,gic-version=2,dtb-randomness=on"
+  }
+}

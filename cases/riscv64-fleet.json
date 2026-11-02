@@ -2,13 +2,13 @@
   "SPDX-FileCopyrightText": "2026 roolrz",
   "SPDX-License-Identifier": "Apache-2.0",
   "version": 1,
-  "id": "native-services",
+  "id": "riscv64-fleet",
   "architectures": [
-    "aarch64"
+    "riscv64"
   ],
   "command": [
     "sh",
     "tests/ci/run.sh",
-    "native-services"
+    "riscv64-fleet"
   ]
 }

@@ -20,6 +20,12 @@ TARGETS = {
 FILES = ('hyper.img', 'initramfs.cpio')
 
 
+def files(arch):
+    # The ordinary and SMP archives use the same kernel and userspace binaries.
+    # Keep distinct archives in one handoff so their producer builds those once.
+    return FILES + (('initramfs-smp.cpio',) if arch == 'aarch64' else ())
+
+
 def digest(path):
     result = hashlib.sha256()
     with path.open('rb') as stream:
@@ -51,27 +57,25 @@ def configuration_identity(output, arch, environment):
 
 def publish(root, directory, arch, revision):
     directory.mkdir(parents=True, exist_ok=True)
-    sources = (
-        root / 'kernel/target' / TARGETS[arch] / 'kernel/hyper.img',
-        root / 'target/app' / arch / 'initramfs.cpio',
-    )
-    for name, source in zip(FILES, sources):
+    for name in files(arch):
+        source = (root / 'kernel/target' / TARGETS[arch] / 'kernel' / name
+                  if name == 'hyper.img' else root / 'target/app' / arch / name)
         shutil.copyfile(source, directory / name)
     manifest = {
-        'version': 1, 'arch': arch, 'revision': revision,
-        'files': {name: digest(directory / name) for name in FILES},
+        'version': 2, 'arch': arch, 'revision': revision,
+        'files': {name: digest(directory / name) for name in files(arch)},
     }
     (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
 
 def verify(directory, arch, revision):
     manifest = json.loads((directory / 'manifest.json').read_text())
-    if (manifest.get('version') != 1 or manifest.get('arch') != arch
+    if (manifest.get('version') != 2 or manifest.get('arch') != arch
             or manifest.get('revision') != revision):
         raise ValueError('Native fixture does not match this revision and architecture')
-    if set(manifest.get('files', {})) != set(FILES):
+    if set(manifest.get('files', {})) != set(files(arch)):
         raise ValueError('Native fixture has an unexpected file set')
-    for name in FILES:
+    for name in files(arch):
         path = directory / name
         if path.is_symlink() or not path.is_file() or not path.stat().st_size:
             raise ValueError(f'Native fixture is missing a regular nonempty {name}')

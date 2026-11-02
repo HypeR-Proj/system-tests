@@ -45,7 +45,7 @@ publishes after changes merge into `main`.
 | --- | --- |
 | `native` | Serial local aggregate of all AArch64 Native suites below |
 | `native-gicv3` | Serial aggregate of the GICv3 boot, interactive, failure and VM suites |
-| `native-fixture` | Build and package the ordinary Native kernel/initramfs pair; `CI_ARCH` selects AArch64 (default) or RISC-V |
+| `native-fixture` | Build and package the Native kernel/initramfs plus a separate SMP archive on AArch64; `CI_ARCH` selects AArch64 (default) or RISC-V |
 | `native-boot` | Native boot and application startup on one/four CPUs |
 | `native-console` | Paced input, pressure, shell restart and guest console |
 | `native-terminal` | Terminal modes, transformations and flow control |
@@ -54,7 +54,10 @@ publishes after changes merge into `main`.
 | `native-scheduler` | One/four-CPU scheduler benchmark correctness, same/cross-CPU IPC, loaded periodic wakeups, statistical accounting and capability failures; no latency thresholds |
 | `native-pmu` | Opt-in PMUv3 overflow sampling on every CPU, bounded capture and exact-ELF flame-graph export on GICv2/GICv3 |
 | `native-shell` | Shell language, editing, completion and redirection |
-| `native-services` | Service readiness, scoped control, captured stdio, query and restart limits; bounded postmortem retention, terminal disconnect, early progress, failed-console recovery, runtime failure reporting and boot-profile selection/adoption |
+| `native-services` | Serial local aggregate of the three service suites below |
+| `native-service-lifecycle` | Service readiness, scoped control, captured stdio, query/restart limits and process retirement; build their common prerequisites once |
+| `native-service-failure` | Bounded postmortem retention, terminal disconnect, early progress, failed-console recovery and runtime failure reporting |
+| `native-boot-profiles` | Boot-profile selection and adoption |
 | `native-fleet` | Fleet configuration admission and error handling |
 | `native-storage-recovery` | Storage readiness and handoff failure recovery |
 | `native-filesystem` | Filesystem RPC and provider failure |
@@ -68,10 +71,15 @@ publishes after changes merge into `main`.
 | `native-smp-gicv2-retirement` | GICv2 SMP topology with abrupt runtime-exit retirement |
 | `native-smp-overcommit` | Guest SMP with one host CPU |
 | `native-retirement-stack` | Power-crash retirement in dormant/pending/powered-off states and stack limits |
+| `native-power-retirement` | All three power-crash states, retaining three retirement/restart cycles per state |
+| `native-stack-audit` | Dedicated instrumented stack workload; separate AArch64 and RISC-V jobs |
 | `native-stack-16k` | Native userspace boot on one/four CPUs with 16 KiB kernel thread stacks, independent RAMFS test root, root/supervision handoff, shell commands, static/dynamic std and application startup |
 | `native-stress` | Seeded concurrent handle churn, cross-process MOVE and process stop/normal exit; 12 rounds each on one/four CPUs, supports `CI_ARCH=riscv64` |
 | `riscv64-runtime` | Serial aggregate of the six ordinary Native probes with `CI_ARCH=riscv64`, plus `riscv64-vm` |
-| `riscv64-vm` | RISC-V fleet configuration, VM authority on one/four harts, runtime-crash recovery and stack limits |
+| `riscv64-vm` | Serial local aggregate of `riscv64-fleet`, `riscv64-vm-smoke`, `riscv64-runtime-crash` and `native-stack-audit` |
+| `riscv64-fleet` | RISC-V fleet configuration admission and error handling |
+| `riscv64-vm-smoke` | VM authority on one/four host harts |
+| `riscv64-runtime-crash` | RISC-V runtime-crash recovery and isolation in both fleet orders |
 | `io-vm` | Pinned I/O appliance, cross-VM storage reset and standby acceptance on GICv2/GICv3 |
 | `io-network` | Default physical/guest PCI storage and network lifecycle, with physical SMMUv3 translation |
 | `io-network-mmio` | Dedicated physical/guest MMIO compatibility: storage, network, driver reset and VM restart |
@@ -84,8 +92,20 @@ publishes after changes merge into `main`.
 | `board-userspace-device` | Native physical device backend through MMIO/IRQ capabilities |
 | `board-product-config` | Minimal kernel and userspace product, omitted FAT/fleet components and complete bootstrap retirement |
 
-System jobs have isolated filesystems and build their own runtime prerequisites.
+System jobs have isolated filesystems. Ordinary probes, including GICv2 boot and
+console, consume the `native` fixture. The three guest SMP topology probes consume
+the separately named `initramfs-smp.cpio` from the same AArch64 bundle. Its
+producer builds their common kernel and userspace prerequisites once; changing
+host CPU count or GIC backend does not change that archive. Handoffs verify
+source/configuration identity, architecture, the complete file set and checksums
+before skipping build prerequisites. They contain only immutable images, never
+a shared mutable disk or compiler cache.
 Feature-specific fixtures keep their trap, stack and failure-injection variants.
+The `native-gicv2`, `native-smp-stack`, `native-services` and `riscv64-vm`
+aggregates are local entry points, not CI jobs. CI registers their independent
+runtime cases so one long serial aggregate cannot hold up the entire run.
+GICv2 runtime-crash and SMP retirement still build their own injected binaries;
+they do not consume the ordinary or SMP images as substitutes for fault fixtures.
 Each board suite runs independently; the broker keeps its ordered lifecycle
 scenario in one job. Logs are retained as separate diagnostic artifacts.
 
