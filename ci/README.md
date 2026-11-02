@@ -26,8 +26,8 @@ from the new system matrix and contain no duplicate test implementations.
 | system-tests | Case drivers, fixtures, probes and assertion unit tests; no system boot |
 | ABI, libraries and applications | Their declared component unit tests; Native package formatting is scoped to the owner |
 
-The shared module runner checks only that repository's SPDX headers and shell
-scripts. Python-only infrastructure declares `test_requires_rust: false` to avoid
+The shared module runner checks that repository's shell scripts and Rust package
+formatting. Python-only infrastructure declares `test_requires_rust: false` to avoid
 installing an unused Rust toolchain. Kernel and SDK shards aggregate into the
 required `module` check; a failed or cancelled shard cannot pass that gate.
 The redundant `aarch64-build` aggregate is available locally in the kernel but
@@ -295,10 +295,6 @@ Final bootstrap-stack sizes have Rust const assertions in each architecture's
 layout owner. Image validation independently checks the linked initial stack's
 symbol span. Both require at least 256 KiB for bounded, allocation-free firmware
 discovery; neither depends on how a constant is spelled.
-
-`check-license-headers.sh` requires every project-authored tracked text file to
-carry SPDX copyright and Apache-2.0 identifiers. The complete license text and
-Cargo-generated lockfiles are intentionally exempt.
 
 The build repository's `scripts/check-workspace.py` parses Cargo manifests to enforce in-tree ABI ownership,
 installed-SDK consumption and app-local sharing. It recognizes renamed packages,

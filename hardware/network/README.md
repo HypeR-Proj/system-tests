@@ -38,8 +38,8 @@ python3 project.py exec -- python3 -B tests/hardware/network/prepare.py \
   --output target/board/rpi5-io-qualification
 ```
 
-The output directory must be new. The builder verifies base artifact, package
-and license hashes. It adds the matching
+The output directory must be new. The builder verifies base artifact and package
+hashes. It adds the matching
 Alpine v3.23 AArch64 package beneath `/opt/hyper-network`, with a wrapper at
 `/usr/bin/iperf3`. Its musl and OpenSSL dependencies already exist in Alpine;
 system libraries and the APK database are unchanged. The builder checks the
