@@ -28,7 +28,8 @@ def run(args):
     def command(*argv):
         subprocess.run([str(arg) for arg in argv], cwd=ROOT, env=env, check=True)
 
-    command(sys.executable, ROOT / 'lib/fs-f2fs/tests/check.py')
+    command(sys.executable, ROOT / 'svc/fs-f2fs/build.py', '--host', '--output',
+            build_output / 'build/fs-f2fs/host')
     board = json.loads((ROOT / 'boards/qemu-minimal.json').read_text())
     board['disk']['partitions'].insert(0, {
         'label': 'hyper-data', 'size-mib': 128, 'filesystem': 'fat', 'content': 'data'})
@@ -46,7 +47,7 @@ def run(args):
     fixture = output / 'fixture'
     command(sys.executable, ROOT / 'tests/fs-f2fs/prepare.py', '--base', base,
             '--output', fixture, '--worker', worker, '--probe', probe,
-            '--library', build_output / 'build/lib-fs-f2fs/host/libhyper-f2fs.so')
+            '--library', build_output / 'build/fs-f2fs/host/libhyper-f2fs.so')
     command(sys.executable, ROOT / 'tests/qemu/verify-f2fs.py', '--qemu', args.qemu,
             '--image', ROOT / 'kernel/target/aarch64-unknown-none-softfloat/kernel/hyper.img',
             '--initramfs', fixture / 'bootstrap.cpio', '--disk', fixture / 'disk.img',

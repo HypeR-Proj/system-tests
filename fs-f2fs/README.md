@@ -10,8 +10,8 @@ export OUT="$PWD/out-f2fs"
 python3 tests/fs-f2fs/run.py
 ```
 
-The entry prepares the generated execution view, fetches pinned sources, builds
-and tests the host media core, builds the current Native SDK/kernel/worker/probe,
+The entry prepares the generated execution view, builds the host formatter from
+the checked-in service sources and builds the current Native SDK/kernel/worker/probe,
 downloads the published I/O VM package, and runs three QEMU boots against a new
 128 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
 also discoverable by the system-test runner through `cases/native-f2fs.json`.
@@ -20,8 +20,8 @@ All generated files, including configuration, remain below `OUT`. The default
 fixture is `$OUT/fixtures/f2fs`; an existing fixture is refused. To run again,
 pass `--output "$OUT/fixtures/f2fs-second"`. The host needs the normal HypeR build
 dependencies, Clang/LLVM with C++20 support, Python 3.11 or newer, `oras`, QEMU
-AArch64 and the FAT/EROFS formatters. `HYPER_F2FS_SOURCE_CACHE` can reuse a verified
-source archive cache. The worker and probe are declared Cargo modules; no
+AArch64 and the FAT/EROFS formatters. Fuchsia sources are part of the service
+checkout; no source archive cache is required. The worker and probe are declared Cargo modules; no
 source-side `app/Cargo.toml` or private C++ runtime is created.
 
 The formatter and fixture builder can also be used through the execution view:
@@ -31,7 +31,7 @@ python3 project.py exec -- python3 tests/fs-f2fs/prepare.py --help
 python3 project.py exec -- python3 tests/qemu/verify-f2fs.py --help
 ```
 
-See [the media library](https://github.com/HypeR-Proj/lib-fs-f2fs/blob/main/README.md)
+See [the F2FS service](https://github.com/HypeR-Proj/fs-f2fs/blob/main/README.md)
 for independent module build commands. The complete entry writes its kernel,
 SDK and test binaries from the same current checkout; mixing old artifacts can
 produce misleading ABI failures.
@@ -49,6 +49,7 @@ QEMU, and starts a new instance. The second instance verifies every byte,
 checks truncate/regrow zeroing and nested directory creation, removes the test tree and unmounts again.
 A third instance writes and verifies 12 MiB, crossing the 8 MiB background
 writeback threshold before explicit sync.
-`/bin/f2fs-smoke ram` independently tests the C++/Rust runtime against an owned
-RAM device; it never formats a block capability. A failed test retains its logs
+The smoke application only accesses the mounted service through ordinary file
+APIs and does not depend on the media core. RAM-core and host fault-injection
+tests belong to the service module gate. A failed system test retains its logs
 and disposable disk for inspection.

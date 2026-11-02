@@ -22,9 +22,6 @@ features = ["std"]
 version = "=0.0.0"
 features = ["std"]
 
-[dependencies.hyper-fs-f2fs]
-path = "../../../lib/fs-f2fs"
-
 [lints]
 
 [lints.clippy]

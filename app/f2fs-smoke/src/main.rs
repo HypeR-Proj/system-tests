@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 roolrz
 // SPDX-License-Identifier: Apache-2.0
-//! RAM-core and mounted VFS acceptance; never formats a physical device.
-use hyper_fs_f2fs::{Device, Error, FileSystem, INVALID};
+//! Mounted filesystem acceptance through the Native VFS and F2FS worker.
 use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
@@ -14,62 +13,6 @@ fn payload() -> Vec<u8> {
 }
 fn show(e: impl std::fmt::Debug) -> String {
     format!("{e:?}")
-}
-struct Ram(Vec<u8>);
-impl Device for Ram {
-    fn blocks(&self) -> u64 {
-        (self.0.len() / 4096) as u64
-    }
-    fn read(&mut self, offset: u64, output: &mut [u8]) -> Result<(), Error> {
-        let start = usize::try_from(offset).map_err(|_| INVALID)?;
-        let end = start.checked_add(output.len()).ok_or(INVALID)?;
-        output.copy_from_slice(self.0.get(start..end).ok_or(INVALID)?);
-        Ok(())
-    }
-    fn write(&mut self, offset: u64, input: &[u8]) -> Result<(), Error> {
-        let start = usize::try_from(offset).map_err(|_| INVALID)?;
-        let end = start.checked_add(input.len()).ok_or(INVALID)?;
-        self.0
-            .get_mut(start..end)
-            .ok_or(INVALID)?
-            .copy_from_slice(input);
-        Ok(())
-    }
-    fn flush(&mut self) -> Result<(), Error> {
-        Ok(())
-    }
-}
-fn ram() -> Result<(), String> {
-    let mut device = Ram(vec![0; 128 * 1024 * 1024]);
-    FileSystem::format(&mut device, [0x53; 16]).map_err(show)?;
-    let mut fs = FileSystem::mount(device).map_err(show)?;
-    fs.create("dir", true).map_err(show)?;
-    fs.create("dir/data", false).map_err(show)?;
-    let bytes = payload();
-    for (offset, part) in bytes.chunks(128 * 1024).enumerate() {
-        let actual = fs
-            .write("dir/data", (offset * 128 * 1024) as u64, part)
-            .map_err(show)?;
-        if actual != part.len() {
-            return Err("short write".into());
-        }
-    }
-    fs.sync().map_err(show)?;
-    fs.rename("dir/data", "dir/renamed").map_err(show)?;
-    let device = fs.close().map_err(show)?;
-    let mut fs = FileSystem::mount(device).map_err(show)?;
-    let mut output = vec![0; SIZE];
-    if fs.read("dir/renamed", 0, &mut output).map_err(show)? != SIZE || output != bytes {
-        return Err("RAM remount mismatch".into());
-    }
-    fs.resize("dir/renamed", 17).map_err(show)?;
-    fs.resize("dir/renamed", 9000).map_err(show)?;
-    let actual = fs.read("dir/renamed", 0, &mut output).map_err(show)?;
-    if actual != 9000 || output[..17] != bytes[..17] || output[17..9000].iter().any(|b| *b != 0) {
-        return Err("RAM truncate mismatch".into());
-    }
-    fs.close().map_err(show)?;
-    Ok(())
 }
 fn mounted(mode: &str, root: &Path) -> Result<(), String> {
     let dir = root.join("f2fs-acceptance");
@@ -150,21 +93,17 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             std::fs::remove_dir_all(&dir).map_err(|e| format!("remove tree: {e:?}"))?;
         }
         _ => {
-            return Err("usage: f2fs-smoke ram | write ROOT | verify ROOT | writeback ROOT".into());
+            return Err("usage: f2fs-smoke write ROOT | verify ROOT | writeback ROOT".into());
         }
     }
     Ok(())
 }
 fn main() -> std::process::ExitCode {
-    let mode = std::env::args().nth(1).unwrap_or_else(|| "ram".into());
-    let result = if mode == "ram" {
-        ram()
-    } else {
-        mounted(
-            &mode,
-            Path::new(&std::env::args().nth(2).unwrap_or_else(|| "/data".into())),
-        )
-    };
+    let mode = std::env::args().nth(1).unwrap_or_default();
+    let result = mounted(
+        &mode,
+        Path::new(&std::env::args().nth(2).unwrap_or_else(|| "/data".into())),
+    );
     match result {
         Ok(()) => {
             println!("F2FS-SMOKE: {mode} PASS");
