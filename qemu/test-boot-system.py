@@ -188,7 +188,7 @@ class RootHandoffEvidenceTests(unittest.TestCase):
             b'EROFS mounted at /system',
             b'[HypeR bootstrap stage 1][init] provisional system root active; preparing successor',
             b'HypeR system-startup: core supervision adopted',
-            b'FAT mounted at /data', b'HypeR system-startup: VM fleet configured',
+            b'F2FS mounted at /data', b'HypeR system-startup: VM fleet configured',
             b'HypeR bootstrap-retire: bootstrap retired; boot archive detached',
         )
         boot.check_handoff_order(b'\n'.join(markers))

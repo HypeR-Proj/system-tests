@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 roolrz
 # SPDX-License-Identifier: Apache-2.0
-"""Clone a prepared board and replace only the clone's data with fresh F2FS."""
+"""Clone a production F2FS board and install only test instrumentation."""
 import argparse
 import importlib.util
 import json
@@ -23,11 +23,11 @@ def prepare(args):
         raise ValueError('fixture must be separate from the source board')
     board = Board.load(base / 'deployment.json')
     data = [p for p in board.partitions if p.content == 'data']
-    if len(data) != 1 or data[0].sectors * SECTOR < 128 * MIB:
+    if len(data) != 1 or data[0].filesystem != 'f2fs' or data[0].sectors * SECTOR < 128 * MIB:
         raise ValueError('fixture requires one data partition of at least 128 MiB')
     with (base / 'disk.img').open('rb') as stream:
         pack.validate_disk(stream, board)
-    for artifact in [args.worker, args.probe, args.library, base / 'bootstrap.cpio']:
+    for artifact in [args.worker, args.probe, base / 'bootstrap.cpio']:
         if not artifact.is_file():
             raise ValueError(f'missing artifact: {artifact}')
     output.mkdir(parents=True, exist_ok=False)
@@ -59,14 +59,6 @@ def prepare(args):
     manifest = json.loads((ROOT / 'svc/fs-f2fs/licenses/manifest.json').read_text())
     for name in manifest['files']:
         install(ROOT / name, notices / Path(name).name)
-    media = output / 'f2fs.img'
-    subprocess.run([sys.executable, str(ROOT / 'svc/fs-f2fs/host.py'),
-                    '--library', str(args.library.resolve()), '--output', str(media),
-                    '--size-mib', str(data[0].sectors * SECTOR // MIB)], check=True)
-    with disk.open('r+b') as target, media.open('rb') as source:
-        pack.validate_disk(target, board)
-        target.seek(data[0].start * SECTOR)
-        shutil.copyfileobj(source, target, 1024 * 1024)
     subprocess.run([sys.executable, str(ROOT / 'scripts/pack-board-image.py'),
                     '--board', str(output / 'deployment.json'), '--output', str(disk),
                     '--system-root', str(system), '--refresh-system-payload'], check=True)
@@ -74,13 +66,13 @@ def prepare(args):
         'SPDX-FileCopyrightText': '2026 roolrz', 'SPDX-License-Identifier': 'Apache-2.0',
         'source-board': str(base), 'data-partition': data[0].name,
         'actual-data-filesystem': 'f2fs',
-        'note': 'deployment.json retains source geometry; its FAT formatter was bypassed',
+        'note': 'production formatter and seeded data preserved; only system test programs replaced',
     }, indent=2) + '\n')
     print(f'Prepared disposable F2FS fixture: {output}')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ['base', 'output', 'worker', 'probe', 'library']:
+    for name in ['base', 'output', 'worker', 'probe']:
         parser.add_argument('--' + name, type=Path, required=True)
     prepare(parser.parse_args())

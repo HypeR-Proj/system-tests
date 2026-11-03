@@ -40,6 +40,11 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             if count != 81 {
                 return Err(format!("directory count {count}"));
             }
+            // Include rename and directory creation in the acknowledged checkpoint.
+            std::fs::File::open(dir.join("renamed"))
+                .map_err(show)?
+                .sync_all()
+                .map_err(show)?;
         }
         "writeback" => {
             let file = root.join("f2fs-writeback");

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 roolrz
 # SPDX-License-Identifier: Apache-2.0
 
-"""Exercise the Native FAT volume and verify its contents after a cold VM restart."""
+"""Exercise the Native data volume and verify its contents after a cold VM restart."""
 
 import argparse
 import importlib.util
@@ -94,7 +94,7 @@ def boot(args, mode):
             child.stdin.flush()
             copied = await_text(rb'hyper-sh\$ ')
             if status(copied) != 0:
-                raise RuntimeError(f'copy across system/FAT failed: {copied!r}')
+                raise RuntimeError(f'copy across system/data failed: {copied!r}')
             child.stdin.write(f'vmm status {args.observed_name}\n'.encode())
             child.stdin.flush()
             observed = await_text(rb'hyper-sh\$ ')
