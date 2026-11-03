@@ -54,4 +54,5 @@ if __name__ == '__main__':
     boot(args, 'verify', label='checkpoint-verify')
     boot(args, 'writeback')
 
-    boot(args, 'stream')
+    boot(args, 'stream-write')
+    boot(args, 'stream-verify')

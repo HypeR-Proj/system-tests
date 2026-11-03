@@ -12,7 +12,7 @@ python3 tests/fs-f2fs/run.py
 
 The entry prepares the generated execution view, builds the host formatter from
 the checked-in service sources and builds the current Native SDK/kernel/worker/probe,
-downloads the published I/O VM package, and runs six QEMU boots against a new
+downloads the published I/O VM package, and runs seven QEMU boots against a new
 128 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
 also discoverable by the system-test runner through `cases/native-f2fs.json`.
 
@@ -55,5 +55,6 @@ APIs and does not depend on the media core. RAM-core and host fault-injection
 tests belong to the service module gate. A failed system test retains its logs
 and disposable disk for inspection.
 
-A final streaming pass writes 48 MiB and reads it twice under the ordinary worker
-quota, guarding against clean page copies accumulating in the F2FS heap.
+A final streaming pair writes 48 MiB, restarts QEMU, and reads it twice under the
+ordinary worker quota. The cold first read cannot be satisfied from the previous
+boot's kernel cache, guarding against clean copies accumulating in the F2FS heap.
