@@ -41,10 +41,12 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
                 return Err(format!("directory count {count}"));
             }
             // Include rename and directory creation in the acknowledged checkpoint.
-            std::fs::File::open(dir.join("renamed"))
-                .map_err(show)?
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(dir.join("renamed"))
+                .map_err(|e| format!("open checkpoint handle: {e:?}"))?
                 .sync_all()
-                .map_err(show)?;
+                .map_err(|e| format!("checkpoint before restart: {e:?}"))?;
         }
         "writeback" => {
             let file = root.join("f2fs-writeback");
