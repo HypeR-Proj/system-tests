@@ -160,6 +160,7 @@ def run(args):
         journal.message('/tests/plain', 'SERVICE_STDERR_OK', stream='stderr')
         journal.message('/tests/observer', 'SERVICE_OBSERVER_DENIED_OK')
         journal.message('/tests/ipc', 'SERVICE_LARGE_REPLY_OK')
+        journal.message('/tests/ipc', 'SERVICE_RECEIVE_ORIGIN_OK')
         command('componentctl start /tests/burst-a; componentctl start /tests/burst-b')
         for name in ('burst-a', 'burst-b'):
             state('/tests/' + name, 'completed')
