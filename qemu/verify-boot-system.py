@@ -599,7 +599,8 @@ def main():
             run('vmm delete alpine')
             run('umount /data')
             # The current F2FS port rejects read-only recovery explicitly.
-            run('mount -o ro PARTLABEL=hyper-data /data', fails=True)
+            run('mount -o ro PARTLABEL=hyper-data /data',
+                rb'F2FS read-only mounts are not supported', fails=True)
             run('mount /data')
             run('cat /data/boot-system-test.txt', rb'\nSPLIT-SYSTEM-IO\n')
             run('rm /data/boot-system-test.txt')
