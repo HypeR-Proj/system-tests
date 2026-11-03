@@ -3,6 +3,7 @@
 
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
 mod admission;
+mod bounded_admission;
 mod rendezvous;
 
 use std::{
@@ -300,9 +301,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             println!("SERVICE_LARGE_REPLY_OK");
         }
+        Some("bounded-admission") => bounded_admission::verify()?,
+        Some("journal-admission") => bounded_admission::journal()?,
         _ => {
             return Err(
-                "expected plain, journal-burst, fail, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, or ipc"
+                "expected plain, journal-burst, fail, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, ipc, bounded-admission, or journal-admission"
                     .into(),
             );
         }

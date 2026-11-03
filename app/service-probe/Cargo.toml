@@ -27,6 +27,18 @@ path = "../../../lib/component"
 [dependencies.hyper-service-ipc]
 path = "../../../lib/service-ipc"
 
+[dependencies.hyper-service]
+path = "../../../lib/service"
+
+[dependencies.hyper-journal]
+path = "../../../lib/journal"
+
+[dependencies.hyper-fs-backend-system]
+path = "../../../svc/fs-backend"
+
+[dependencies.hyper-io-runtime-system]
+path = "../../../svc/io-runtime"
+
 [lints]
 
 [lints.clippy]

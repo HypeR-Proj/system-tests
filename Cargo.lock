@@ -140,15 +140,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyper-filesystem"
-version = "0.0.0"
-
-[[package]]
 name = "hyper-f2fs-smoke"
 version = "0.1.0"
 dependencies = [
  "hyper-os",
  "hyper-rt",
+]
+
+[[package]]
+name = "hyper-filesystem"
+version = "0.0.0"
+
+[[package]]
+name = "hyper-fs-backend-system"
+version = "0.1.0"
+dependencies = [
+ "hyper-block",
+ "hyper-component",
+ "hyper-filesystem",
+ "hyper-os",
+ "hyper-rt",
+ "hyper-service",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -180,6 +194,20 @@ dependencies = [
  "hyper-os",
  "hyper-rt",
  "hyper-service",
+]
+
+[[package]]
+name = "hyper-io-runtime-system"
+version = "0.1.0"
+dependencies = [
+ "hyper-os",
+ "hyper-rt",
+ "hyper-service",
+ "hyper-vm-image",
+ "hyper-vm-support",
+ "hyper-vm-support-shared",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -271,8 +299,12 @@ name = "hyper-service-probe"
 version = "0.1.0"
 dependencies = [
  "hyper-component",
+ "hyper-fs-backend-system",
+ "hyper-io-runtime-system",
+ "hyper-journal",
  "hyper-os",
  "hyper-rt",
+ "hyper-service",
  "hyper-service-ipc",
 ]
 
@@ -300,11 +332,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-vm-image"
+version = "0.1.0"
+dependencies = [
+ "hyper-abi",
+ "hyper-os",
+]
+
+[[package]]
+name = "hyper-vm-policy"
+version = "0.1.0"
+dependencies = [
+ "hyper-os",
+ "hyper-service",
+ "hyper-vm-image",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "hyper-vm-policy-shared"
+version = "0.1.0"
+dependencies = [
+ "hyper-rust-std",
+ "hyper-vm-policy",
+]
+
+[[package]]
 name = "hyper-vm-smoke"
 version = "0.1.0"
 dependencies = [
  "hyper-os",
  "hyper-rt",
+]
+
+[[package]]
+name = "hyper-vm-support"
+version = "0.1.0"
+dependencies = [
+ "hyper-os",
+ "hyper-service",
+ "hyper-vm-image",
+ "hyper-vm-policy",
+ "hyper-vm-policy-shared",
+]
+
+[[package]]
+name = "hyper-vm-support-shared"
+version = "0.1.0"
+dependencies = [
+ "hyper-rust-std",
+ "hyper-vm-policy-shared",
+ "hyper-vm-support",
 ]
 
 [[package]]
