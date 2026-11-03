@@ -201,11 +201,15 @@ def run(args):
         for marker in ('COMPONENT_CONCURRENT_CONNECT_OK', 'COMPONENT_UNDECLARED_DENIED_OK'):
             if sum(marker in record['text'] for record in records) != 2:
                 raise AssertionError(f'client log duplicated an outcome: {records!r}')
-        command('componentctl restart /tests/server')
+        restarting = command('componentctl restart /tests/server')
+        if not re.search(rb'/tests/server\s+stopping\s+1\s', restarting):
+            raise AssertionError(f'restart receipt lost its committed generation: {restarting!r}')
         state('/tests/server', 'running', 2)
         command('componentctl start /tests/client')
         state('/tests/client', 'completed', 3)
-        command('componentctl stop /tests/server')
+        stopping = command('componentctl stop /tests/server')
+        if not re.search(rb'/tests/server\s+stopping\s+2\s', stopping):
+            raise AssertionError(f'stop receipt lost its committed state: {stopping!r}')
         state('/tests/server', 'stopped', 2)
         command('componentctl start /tests/timeout')
         state('/tests/timeout', 'completed', 1)
