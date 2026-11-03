@@ -53,3 +53,5 @@ if __name__ == '__main__':
     boot(args, 'write', clean=False, label='checkpoint-write')
     boot(args, 'verify', label='checkpoint-verify')
     boot(args, 'writeback')
+
+    boot(args, 'stream')

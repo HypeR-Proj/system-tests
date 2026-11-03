@@ -551,9 +551,9 @@ def main():
                 metrics = json.loads(match[1])['metrics']
                 return metrics['owner.kernel.resident_pages']['value']
 
-            # F2FS retains clean file pages in its userspace heap. Warm the image
-            # independently of VM creation so the retirement check measures VM
-            # ownership, not the first population of that filesystem cache.
+            # Warm filesystem metadata and allocator pools independently of VM
+            # creation. The retirement check measures VM ownership rather than
+            # the first allocation of filesystem staging/cache resources.
             run('cp /data/vm/alpine.itb /tmp/boot-system-image-warmup', timeout=120)
             run('rm /tmp/boot-system-image-warmup')
             baseline_kernel_pages = kernel_pages()
