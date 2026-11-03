@@ -79,3 +79,6 @@ and expiry must not change intent; reply loss after acceptance retains the
 revision/generation and Stopping until explicit retirement. It also uses the
 filesystem admission worker and publication guard with a closed queued request
 followed by a healthy client. `make test-services` requires its success marker.
+
+See [transport failure acceptance](docs/transport-failures.md) for the real-channel
+coverage matrix, runnable entry points and the limits of each probe.
