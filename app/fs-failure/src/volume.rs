@@ -13,6 +13,8 @@ pub(super) struct FixtureVolume {
     pub(super) notice: OwnedHandle<ByteChannelObject>,
     pub(super) snapshot: Option<Vec<u8>>,
     pub(super) directories: super::directory_volume::DirectoryVolume,
+    pub(super) partial: Vec<u8>,
+    pub(super) late_write: bool,
 }
 
 impl hyper_fs_service::Volume for FixtureVolume {
@@ -23,13 +25,14 @@ impl hyper_fs_service::Volume for FixtureVolume {
         let mut entry = Entry::empty();
         match path {
             "" => {}
-            "cached" | "blocked" | "delayed" | "max-size" | "snapshot" => {
+            "cached" | "blocked" | "delayed" | "max-size" | "snapshot" | "partial" | "late" => {
                 entry.name[..path.len()].copy_from_slice(path.as_bytes());
                 entry.name_len = path.len();
                 entry.kind = protocol::FILE;
                 entry.size = match path {
                     "max-size" => u64::MAX,
                     "snapshot" => self.snapshot.as_ref().ok_or(Error::Missing)?.len() as u64,
+                    "partial" | "late" => self.partial.len() as u64,
                     _ => 8192,
                 };
             }
@@ -40,6 +43,12 @@ impl hyper_fs_service::Volume for FixtureVolume {
 
     fn read(&mut self, path: &str, offset: u64, output: &mut [u8]) -> Result<usize, Error> {
         let size = self.stat(path)?.size;
+        if path == "partial" || path == "late" {
+            let offset = offset.min(size) as usize;
+            let count = output.len().min(self.partial.len() - offset);
+            output[..count].copy_from_slice(&self.partial[offset..offset + count]);
+            return Ok(count);
+        }
         if path == "blocked" {
             self.notice
                 .as_byte_channel()
@@ -82,6 +91,24 @@ impl hyper_fs_service::Volume for FixtureVolume {
     }
 
     fn write(&mut self, path: &str, offset: u64, input: &[u8]) -> Result<usize, Error> {
+        if path == "partial" || path == "late" {
+            if self.late_write {
+                return Err(Error::Io);
+            }
+            if input.is_empty() {
+                return Ok(0);
+            }
+            let offset = usize::try_from(offset).map_err(|_| Error::InvalidInput)?;
+            let count = input.len().min(512usize.saturating_sub(offset));
+            if count == 0 && !input.is_empty() {
+                return Err(Error::NoSpace);
+            }
+            self.partial
+                .resize(self.partial.len().max(offset + count), 0);
+            self.partial[offset..offset + count].copy_from_slice(&input[..count]);
+            self.late_write = path == "late";
+            return Ok(count);
+        }
         if super::directory_volume::DirectoryVolume::owns(path) {
             return self.directories.write(path, offset, input);
         }
@@ -127,6 +154,10 @@ impl hyper_fs_service::Volume for FixtureVolume {
     }
 
     fn resize(&mut self, path: &str, length: u64) -> Result<(), Error> {
+        if path == "partial" && length <= 512 {
+            self.partial.resize(length as usize, 0);
+            return Ok(());
+        }
         if path == "snapshot" && length <= 8192 {
             self.snapshot
                 .as_mut()
@@ -138,7 +169,11 @@ impl hyper_fs_service::Volume for FixtureVolume {
     }
 
     fn sync(&mut self) -> Result<(), Error> {
-        Ok(())
+        if self.late_write {
+            Err(Error::Io)
+        } else {
+            Ok(())
+        }
     }
 
     fn set_times(
