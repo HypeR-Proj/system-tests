@@ -50,7 +50,7 @@ def prepare(args):
         return value
     def write(value):
         (declarations / (value['name'] + '.json')).write_text(json.dumps(value))
-    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines')]:
+    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines'), ('publication', 'publication')]:
         value = component(name, mode, startup='eager')
         if name == 'observer':
             value['use'] = [{'name': 'observe', 'kind': observe, 'purpose': 0x800c0003}]
@@ -174,6 +174,7 @@ def run(args):
         journal.message('/tests/ipc', 'SERVICE_ADMISSION_RECOVERY_OK')
         journal.message('/tests/bounded', 'SERVICE_BOUNDED_ADMISSION_OK')
         journal.message('/tests/deadlines', 'SERVICE_REQUEST_DEADLINES_OK')
+        journal.message('/tests/publication', 'SERVICE_PUBLICATION_OK')
         command('componentctl start /tests/journal-admission')
         state('/tests/journal-admission', 'completed')
         journal.message('/tests/journal-admission', 'JOURNAL_ADMISSION_RECOVERY_OK')

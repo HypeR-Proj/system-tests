@@ -39,6 +39,12 @@ path = "../../../svc/fs-backend"
 [dependencies.hyper-io-runtime-system]
 path = "../../../svc/io-runtime"
 
+[dependencies.hyper-component-manager]
+path = "../../../svc/component-manager"
+
+[dependencies.hyper-component-config]
+path = "../../../lib/component-config"
+
 [lints]
 
 [lints.clippy]
