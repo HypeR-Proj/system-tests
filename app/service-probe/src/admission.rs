@@ -19,7 +19,7 @@ pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
     drop(denied);
     let worker = std::thread::Builder::new()
         .name("admission-recovery".into())
-        .spawn(move || -> Result<()> {
+        .spawn(move || -> hyper_service_ipc::RpcResult<()> {
             for attempt in 0..6 {
                 let admission = hyper_service_ipc::receive::<String>(
                     &listener,
@@ -42,7 +42,7 @@ pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     })
                 };
                 if !matches!(admission, Admission::Rejected(reason) if reason == expected) {
-                    return Err(Error::InvalidResponse);
+                    return Err(Error::InvalidResponse.into());
                 }
                 // A different private reply channel succeeds after each refusal.
                 let Admission::Accepted(call) = hyper_service_ipc::receive::<String>(
@@ -50,17 +50,17 @@ pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     hyper_service_ipc::deadline()?,
                 )?
                 else {
-                    return Err(Error::InvalidResponse);
+                    return Err(Error::InvalidResponse.into());
                 };
                 if call.request != format!("valid-{attempt}") {
-                    return Err(Error::InvalidResponse);
+                    return Err(Error::InvalidResponse.into());
                 }
                 let reply = call.request.clone();
                 call.respond(&reply)?;
             }
             Ok(())
         })?;
-    let sent = (|| -> Result<()> {
+    let sent = (|| -> hyper_service_ipc::RpcResult<()> {
         for attempt in 0..6 {
             let (observer, source) = hyper_os::channel::create_pair()?;
             let mut source = Some(source);
@@ -124,7 +124,7 @@ pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 _ => None,
             };
             if result.err() != expected {
-                return Err(Error::InvalidResponse);
+                return Err(Error::InvalidResponse.into());
             }
             if attempt == 0 {
                 // Successfully transferred but malformed protocol: the server
@@ -147,7 +147,7 @@ pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
             let message = format!("valid-{attempt}");
             let reply: String = hyper_service_ipc::request(client.as_handle_ref(), &message)?;
             if reply != message {
-                return Err(Error::InvalidResponse);
+                return Err(Error::InvalidResponse.into());
             }
         }
         Ok(())
