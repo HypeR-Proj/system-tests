@@ -25,6 +25,7 @@ use std::{
 
 mod directory;
 mod directory_volume;
+mod partial_write;
 mod volume;
 
 type Result<T> = std::result::Result<T, String>;
@@ -294,6 +295,7 @@ fn suite(startup: &mut Startup<'_>) -> Result<()> {
     protected_file_cache(startup, &root)?;
     protection_exit(startup, &root)?;
     directory::run(startup, &root)?;
+    partial_write::run(startup, &root)?;
     Ok(())
 }
 
@@ -814,6 +816,8 @@ fn run() -> Result<bool> {
             notice,
             snapshot: Some(vec![0x5a; 8192]),
             directories: directory_volume::DirectoryVolume::default(),
+            partial: Vec::new(),
+            late_write: false,
         };
         let _completion = hyper_fs_service::serve_buffered(&mut startup, &mut volume)?;
         Ok(false)
