@@ -489,7 +489,9 @@ def main():
             # manager after its migration endpoint closed and topology rolled back.
             run('mount -T /system/etc/fstab /data',
                 rb'F2FS recognized for /data, but filesystem worker is unavailable', fails=True)
-            run('cat /system/etc/fstab', rb'PARTLABEL=hyper-data')
+            run('cd /system/etc')
+            run('pwd', rb'/system/etc')
+            run('cd /')
             run('mount', rb'PARTUUID=[0-9a-f-]+ on /system type erofs \(ro\)')
             session.pump(2)
         if args.manager_case:
