@@ -191,9 +191,39 @@ fn io() -> Result<()> {
     Ok(())
 }
 
+fn io_public_closure_preserves_admitted_handshakes() -> Result<()> {
+    use hyper_io_runtime_system::admission::Listener;
+    let (endpoint, client) = CapabilityChannel::create()?;
+    let listener = Listener::start(endpoint)?;
+    let record = hyper_service::io::encode_connect(1, "system").ok_or(Error::InvalidResponse)?;
+    let private = attach_io(&client, &record)?;
+    drop(client);
+    // Public EOF must not cancel this already-transferred private endpoint.
+    let until = hyper_os::time::deadline_after(Duration::from_millis(300))?.as_raw();
+    if wait_closed(&private, until).err() != Some(Error::Status(Status::TIMED_OUT)) {
+        return Err(Error::InvalidResponse);
+    }
+    drop(private);
+    for terminal in [false, true] {
+        wait_many(
+            &[WaitItem::new(
+                listener.bell.as_handle_ref(),
+                ObjectSignals::<ByteChannelObject>::READABLE,
+            )],
+            deadline(2)?,
+        )?;
+        match (terminal, listener.receive()) {
+            (false, Ok(None)) | (true, Err(Error::Status(Status::PEER_CLOSED))) => {}
+            _ => return Err(Error::InvalidResponse),
+        }
+    }
+    Ok(())
+}
+
 pub fn verify() -> std::result::Result<(), Box<dyn std::error::Error>> {
     filesystem()?;
     io()?;
+    io_public_closure_preserves_admitted_handshakes()?;
     println!("SERVICE_BOUNDED_ADMISSION_OK");
     Ok(())
 }
