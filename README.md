@@ -38,3 +38,14 @@ subsequent transfer on the same endpoint installs the intended object.
 
 The case entry point is [ci/run.sh](ci/run.sh). See [suite ownership](ci/README.md)
 for the responsibilities of the case families and `profiling/` for Perfetto validation helpers.
+
+## Public admission recovery probe
+
+The Native service lifecycle case exercises actual SDK receive-origin and MOVE
+ownership. Its IPC probe interleaves malformed JSON, missing reply handles,
+byte/handle capacity overflow, wrong object kinds and insufficient rights with successful
+requests on the same listener. It also checks malformed stream admission followed
+by a usable stream. Failed transfers retain sender ownership; malformed accepted
+requests release their transferred reply handles. The fixture also injects malformed JSON into the real management observer and
+component connector before successful management and publication requests.
+These probes do not cover every service's independent wire protocol.
