@@ -113,6 +113,17 @@ name = "hyper-block"
 version = "0.1.0"
 
 [[package]]
+name = "hyper-bootstrap-handoff"
+version = "0.1.0"
+dependencies = [
+ "hyper-component",
+ "hyper-os",
+ "hyper-service-ipc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "hyper-clap-shared"
 version = "0.1.0"
 dependencies = [
@@ -135,6 +146,22 @@ dependencies = [
 name = "hyper-component-config"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "hyper-component-manager"
+version = "0.1.0"
+dependencies = [
+ "hyper-bootstrap-handoff",
+ "hyper-component",
+ "hyper-component-config",
+ "hyper-journal",
+ "hyper-os",
+ "hyper-rt",
+ "hyper-service",
+ "hyper-service-ipc",
  "serde",
  "serde_json",
 ]
@@ -299,6 +326,8 @@ name = "hyper-service-probe"
 version = "0.1.0"
 dependencies = [
  "hyper-component",
+ "hyper-component-config",
+ "hyper-component-manager",
  "hyper-fs-backend-system",
  "hyper-io-runtime-system",
  "hyper-journal",

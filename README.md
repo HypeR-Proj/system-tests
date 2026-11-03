@@ -72,3 +72,10 @@ expires, and a later healthy request succeeds on the same listener. Expired
 request envelopes release reply ownership before application dispatch. Invalid
 peer framing is reported separately from local encoding failures. SDK probes
 also verify that already-expired byte sends/receives leave queues unchanged.
+
+The Native service probe's `publication` mode exercises real RPC owners around
+the component manager's production command application function: queued close
+and expiry must not change intent; reply loss after acceptance retains the
+revision/generation and Stopping until explicit retirement. It also uses the
+filesystem admission worker and publication guard with a closed queued request
+followed by a healthy client. `make test-services` requires its success marker.
