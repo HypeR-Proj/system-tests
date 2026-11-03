@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
+mod admission;
 mod rendezvous;
 
 use std::{
@@ -166,6 +167,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let outgoing = hyper_os::capability_channel::CapabilityChannel::from_handle(
                 startup.take(hyper_component::OUTGOING)?,
             );
+            admission::malformed(startup.borrow(hyper_component::CONNECTOR)?)?;
             hyper_component::connection::publish(
                 startup.borrow(hyper_component::CONNECTOR)?,
                 "echo",
@@ -173,15 +175,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("COMPONENT_ECHO_PUBLISHED");
             let active = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             loop {
-                let (name, session) =
-                    hyper_component::connection::accept(&outgoing, hyper_os::DEADLINE_INFINITE)?;
+                let (name, session) = match hyper_component::connection::accept(
+                    &outgoing,
+                    hyper_os::DEADLINE_INFINITE,
+                )? {
+                    hyper_service_ipc::Admission::Accepted(connection) => connection,
+                    hyper_service_ipc::Admission::Rejected(_) => continue,
+                };
                 if name != "echo" || active.load(std::sync::atomic::Ordering::Acquire) >= 8 {
                     continue;
                 }
                 active.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
                 let active = active.clone();
                 std::thread::spawn(move || {
-                    if let Ok(call) =
+                    if let Ok(hyper_service_ipc::Admission::Accepted(call)) =
                         hyper_service_ipc::receive::<String>(&session, hyper_os::DEADLINE_INFINITE)
                     {
                         let reply = call.request.clone();
@@ -256,6 +263,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("observe") => {
             let startup = hyper_rt::process::startup()?;
+            admission::malformed(startup.borrow(hyper_component::OBSERVE)?)?;
             let reply: hyper_component::Reply = hyper_service_ipc::request(
                 startup.borrow(hyper_component::OBSERVE)?,
                 &hyper_component::Request::Stop {
@@ -269,12 +277,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("ipc") => {
             rendezvous::verify()?;
+            admission::verify()?;
             let (listener, client) = hyper_os::capability_channel::CapabilityChannel::create()?;
             let worker = std::thread::spawn(move || -> hyper_os::Result<()> {
-                let call = hyper_service_ipc::receive::<String>(
-                    &listener,
-                    hyper_service_ipc::deadline()?,
-                )?;
+                let hyper_service_ipc::Admission::Accepted(call) =
+                    hyper_service_ipc::receive::<String>(
+                        &listener,
+                        hyper_service_ipc::deadline()?,
+                    )?
+                else {
+                    return Err(hyper_os::Error::InvalidResponse);
+                };
                 if call.request != "large reply" {
                     return Err(hyper_os::Error::InvalidResponse);
                 }
