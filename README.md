@@ -49,3 +49,17 @@ by a usable stream. Failed transfers retain sender ownership; malformed accepted
 requests release their transferred reply handles. The fixture also injects malformed JSON into the real management observer and
 component connector before successful management and publication requests.
 These probes do not cover every service's independent wire protocol.
+
+## Bounded service admission
+
+The service lifecycle case runs the actual fs-backend and I/O broker admission
+implementations with Native capability and byte channels. A silent filesystem
+client cannot block a healthy request; eight pending commands reject overload,
+expire and return capacity. Eight incomplete I/O memory handshakes still permit
+an observer, and cancellation and listener shutdown return private endpoints.
+This admission probe does not create a VM or publish a DMA mapping.
+
+The same case exercises the running journald: more than eight retained query
+endpoints work concurrently without per-client workers, pending endpoint
+handoffs are bounded and expire, and existing query endpoints continue working
+while handoff capacity is exhausted and after recovery.

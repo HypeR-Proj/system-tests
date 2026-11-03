@@ -50,12 +50,20 @@ def prepare(args):
         return value
     def write(value):
         (declarations / (value['name'] + '.json')).write_text(json.dumps(value))
-    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe')]:
+    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission')]:
         value = component(name, mode, startup='eager')
         if name == 'observer':
             value['use'] = [{'name': 'observe', 'kind': observe, 'purpose': 0x800c0003}]
             realm['offer'].append({'name': 'observe', 'to': name, 'from': 'parent', 'source': 'observe', 'kind': observe})
         write(value)
+    # Reuse the production protocol's declared type, rather than duplicating it.
+    journal_offer = next(item for item in root['offer'] if item['to'] == 'session-manager' and item['name'] == 'journal')
+    journal_protocol = journal_offer['kind']
+    root['offer'].append({**journal_offer, 'to': 'tests'})
+    value = component('journal-admission', 'journal-admission')
+    value['use'] = [{'name': 'journal', 'kind': journal_protocol}]
+    realm['offer'].append({'name': 'journal', 'to': 'journal-admission', 'from': 'parent', 'source': 'journal', 'kind': journal_protocol})
+    write(value)
     for name, mode in [('server', 'echo'), ('silent', 'idle')]:
         value = component(name, mode)
         value['capabilities'] = [{'name': 'echo', 'kind': protocol}]
@@ -145,6 +153,7 @@ def run(args):
             raise AssertionError(f'normal completion has no informational report: {completed!r}')
         state('/tests/observer', 'completed')
         state('/tests/ipc', 'completed')
+        state('/tests/bounded', 'completed')
         if b'interactive-ready' not in command('componentctl status /session-manager'):
             raise AssertionError('interactive program did not report readiness')
         for prefix in ('', 'prepared-'):
@@ -162,6 +171,10 @@ def run(args):
         journal.message('/tests/ipc', 'SERVICE_LARGE_REPLY_OK')
         journal.message('/tests/ipc', 'SERVICE_RECEIVE_ORIGIN_OK')
         journal.message('/tests/ipc', 'SERVICE_ADMISSION_RECOVERY_OK')
+        journal.message('/tests/bounded', 'SERVICE_BOUNDED_ADMISSION_OK')
+        command('componentctl start /tests/journal-admission')
+        state('/tests/journal-admission', 'completed')
+        journal.message('/tests/journal-admission', 'JOURNAL_ADMISSION_RECOVERY_OK')
         command('componentctl start /tests/burst-a; componentctl start /tests/burst-b')
         for name in ('burst-a', 'burst-b'):
             state('/tests/' + name, 'completed')
