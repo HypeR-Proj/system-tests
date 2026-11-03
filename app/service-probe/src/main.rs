@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
+mod rendezvous;
+
 use std::{
     io::{Read, Write},
     time::Duration,
@@ -266,6 +268,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("SERVICE_OBSERVER_DENIED_OK");
         }
         Some("ipc") => {
+            rendezvous::verify()?;
             let (listener, client) = hyper_os::capability_channel::CapabilityChannel::create()?;
             let worker = std::thread::spawn(move || -> hyper_os::Result<()> {
                 let call = hyper_service_ipc::receive::<String>(

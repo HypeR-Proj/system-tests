@@ -31,5 +31,10 @@ Those tests belong to this repository's automatic module check. Runtime cases
 run only after an explicit system-verification request. Execution logs and
 per-case elapsed times are retained by the framework under OUT/results.
 
+The Native service-lifecycle case also runs capability rendezvous through the
+installed Rust SDK: receiver-local rights failure is distinct from matched
+capacity/type/rights rejection, rejected MOVE keeps its source owner, and a
+subsequent transfer on the same endpoint installs the intended object.
+
 The case entry point is [ci/run.sh](ci/run.sh). See [suite ownership](ci/README.md)
 for the responsibilities of the case families and `profiling/` for Perfetto validation helpers.
