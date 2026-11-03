@@ -63,3 +63,12 @@ The same case exercises the running journald: more than eight retained query
 endpoints work concurrently without per-client workers, pending endpoint
 handoffs are bounded and expire, and existing query endpoints continue working
 while handoff capacity is exhausted and after recovery.
+
+## Request deadline transport probes
+
+Native service acceptance verifies that a delayed admission followed by a delayed
+reply cannot renew a caller budget. A non-reading client with a full reply queue
+expires, and a later healthy request succeeds on the same listener. Expired
+request envelopes release reply ownership before application dispatch. Invalid
+peer framing is reported separately from local encoding failures. SDK probes
+also verify that already-expired byte sends/receives leave queues unchanged.

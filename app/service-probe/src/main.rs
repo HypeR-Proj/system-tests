@@ -5,6 +5,7 @@
 mod admission;
 mod bounded_admission;
 mod rendezvous;
+mod request_deadlines;
 
 use std::{
     io::{Read, Write},
@@ -208,21 +209,24 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     .borrow(hyper_component::CONNECTOR)?
                     .duplicate(hyper_service_ipc::CLIENT_RIGHTS)?;
                 let barrier = barrier.clone();
-                workers.push(std::thread::spawn(move || -> hyper_os::Result<()> {
-                    barrier.wait();
-                    let session = hyper_component::connection::connect(
-                        connector.as_handle_ref(),
-                        "echo",
-                        hyper_service_ipc::deadline()?,
-                    )?;
-                    let value = format!("connection-{n}");
-                    let reply: String =
-                        hyper_service_ipc::request(session.as_handle_ref(), &value)?;
-                    if reply != value {
-                        return Err(hyper_os::Error::InvalidResponse);
-                    }
-                    Ok(())
-                }));
+                workers.push(std::thread::spawn(
+                    move || -> hyper_service_ipc::RpcResult<()> {
+                        barrier.wait();
+                        let session = hyper_component::connection::connect(
+                            connector.as_handle_ref(),
+                            "echo",
+                            hyper_service_ipc::deadline()?,
+                        )
+                        .map_err(hyper_os::Error::from)?;
+                        let value = format!("connection-{n}");
+                        let reply: String =
+                            hyper_service_ipc::request(session.as_handle_ref(), &value)?;
+                        if reply != value {
+                            return Err(hyper_os::Error::InvalidResponse.into());
+                        }
+                        Ok(())
+                    },
+                ));
             }
             for worker in workers {
                 worker.join().map_err(|_| "client thread failed")??;
@@ -280,17 +284,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             rendezvous::verify()?;
             admission::verify()?;
             let (listener, client) = hyper_os::capability_channel::CapabilityChannel::create()?;
-            let worker = std::thread::spawn(move || -> hyper_os::Result<()> {
+            let worker = std::thread::spawn(move || -> hyper_service_ipc::RpcResult<()> {
                 let hyper_service_ipc::Admission::Accepted(call) =
                     hyper_service_ipc::receive::<String>(
                         &listener,
                         hyper_service_ipc::deadline()?,
                     )?
                 else {
-                    return Err(hyper_os::Error::InvalidResponse);
+                    return Err(hyper_os::Error::InvalidResponse.into());
                 };
                 if call.request != "large reply" {
-                    return Err(hyper_os::Error::InvalidResponse);
+                    return Err(hyper_os::Error::InvalidResponse.into());
                 }
                 call.respond(&"x".repeat(96 * 1024))
             });
@@ -303,9 +307,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("bounded-admission") => bounded_admission::verify()?,
         Some("journal-admission") => bounded_admission::journal()?,
+        Some("request-deadlines") => request_deadlines::verify()?,
         _ => {
             return Err(
-                "expected plain, journal-burst, fail, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, ipc, bounded-admission, or journal-admission"
+                "expected plain, journal-burst, fail, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, ipc, bounded-admission, journal-admission, or request-deadlines"
                     .into(),
             );
         }
