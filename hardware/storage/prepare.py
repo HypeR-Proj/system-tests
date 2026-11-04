@@ -67,6 +67,10 @@ def main():
 
     def run(command, **kwargs):
         command = [str(item) for item in command]
+        # Use the complete default product, not a developer's saved selection.
+        # This also keeps the kernel output path below independent of product IDs.
+        if command[0] == 'make':
+            command.append('SYSTEM_CONFIG=')
         commands.append(command)
         print('+', ' '.join(command), flush=True)
         return subprocess.run(command, cwd=ROOT, env=env, check=True, **kwargs)

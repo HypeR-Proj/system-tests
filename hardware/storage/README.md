@@ -49,6 +49,9 @@ Both executables link the exact same three workload objects. The HypeR image
 derives from `boards/rpi5.json`, uses the Native `system` profile, enlarges its
 configuration volume to 2 GiB, and adds Native `/bin/storage-qual` plus Alpine
 `/usr/bin/storage-qual`.
+The build explicitly selects the complete default product instead of a saved
+local product configuration, ensuring its F2FS worker is included. The selected
+AArch64 kernel configuration is copied into the artifact directory.
 Alpine receives the exact `storage-qual-linux` executable used on Raspbian;
 its base rootfs cache, kernel and initramfs are unchanged. The network deployment
 and published I/O VM pin are preserved. The ordinary
