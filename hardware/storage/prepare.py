@@ -67,6 +67,10 @@ def main():
 
     def run(command, **kwargs):
         command = [str(item) for item in command]
+        # Use the complete default product, not a developer's saved selection.
+        # This also keeps the kernel output path below independent of product IDs.
+        if command[0] == 'make':
+            command.append('SYSTEM_CONFIG=')
         commands.append(command)
         print('+', ' '.join(command), flush=True)
         return subprocess.run(command, cwd=ROOT, env=env, check=True, **kwargs)
@@ -150,7 +154,7 @@ def main():
                     for path in [*sorted(SOURCE.glob('*.c')), *sorted(SOURCE.glob('*.h')),
                                  *sorted(SOURCE.glob('*.py')), SOURCE / 'README.md',
                                  PLATFORM / 'platform.h', PLATFORM / 'hyper.c', PLATFORM / 'linux.c',
-                                 ROOT / 'scripts/io-vm.lock.json', ROOT / 'boards/rpi5.json',
+                                 ROOT / 'boards/rpi5.json',
                                  ROOT / 'bootstrap/stage1/io-runtime/Cargo.toml',
                                  ROOT / 'bootstrap/stage1/io-runtime/src/runtime/mod.rs',
                                  ROOT / 'bootstrap/stage1/io-runtime/tests/fixtures/physical_retirement.rs']},

@@ -16,7 +16,7 @@ dedicated, disposable qualification cards.
 The comparison covers Native HypeR `/data`, the Alpine guest's ext4 root disk,
 and a process on the existing Raspbian card. No new Raspbian image is needed.
 Use the same Pi, power supply, cooling and SD slot. Two cards of
-the same model are still different devices. HypeR uses FAT32; retain and record
+the same model are still different devices. HypeR uses F2FS; retain and record
 Raspbian's existing filesystem, normally ext4. The result describes these two
 deployments, not isolated hypervisor overhead or a controlled filesystem study.
 
@@ -49,6 +49,9 @@ Both executables link the exact same three workload objects. The HypeR image
 derives from `boards/rpi5.json`, uses the Native `system` profile, enlarges its
 configuration volume to 2 GiB, and adds Native `/bin/storage-qual` plus Alpine
 `/usr/bin/storage-qual`.
+The build explicitly selects the complete default product instead of a saved
+local product configuration, ensuring its F2FS worker is included. The selected
+AArch64 kernel configuration is copied into the artifact directory.
 Alpine receives the exact `storage-qual-linux` executable used on Raspbian;
 its base rootfs cache, kernel and initramfs are unchanged. The network deployment
 and published I/O VM pin are preserved. The ordinary
@@ -126,7 +129,7 @@ For a cold readback, reboot and run `check` with the last writer's run ID.
 It records all operation latencies after timing. It preserves the verified
 pattern; it is a latency test, not a changed-data durability proof. Application
 queue depth is one. The Linux adapter uses `syncfs` on the file's filesystem;
-HypeR's FAT sync also commits the whole mounted volume. These are **volume-sync
+HypeR's F2FS sync also commits the whole mounted volume. These are **volume-sync
 latencies**, not Linux per-file `fsync` latency or O_DIRECT/raw-device results.
 Other writes on Raspbian's root filesystem can therefore affect its results.
 

@@ -23,8 +23,8 @@ def prepare(args):
         raise ValueError('fixture must be separate from the source board')
     board = Board.load(base / 'deployment.json')
     data = [p for p in board.partitions if p.content == 'data']
-    if len(data) != 1 or data[0].filesystem != 'f2fs' or data[0].sectors * SECTOR < 128 * MIB:
-        raise ValueError('fixture requires one data partition of at least 128 MiB')
+    if len(data) != 1 or data[0].filesystem != 'f2fs' or data[0].sectors * SECTOR < 256 * MIB:
+        raise ValueError('fixture requires one data partition of at least 256 MiB')
     with (base / 'disk.img').open('rb') as stream:
         pack.validate_disk(stream, board)
     for artifact in [args.worker, args.probe, base / 'bootstrap.cpio']:

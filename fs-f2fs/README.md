@@ -12,8 +12,8 @@ python3 tests/fs-f2fs/run.py
 
 The entry prepares the generated execution view, builds the host formatter from
 the checked-in service sources and builds the current Native SDK/kernel/worker/probe,
-downloads the published I/O VM package, and runs seven QEMU boots against a new
-128 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
+downloads the published I/O VM package, and runs eleven QEMU boots against a new
+256 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
 also discoverable by the system-test runner through `cases/native-f2fs.json`.
 
 All generated files, including configuration, remain below `OUT`. The default
@@ -42,6 +42,12 @@ installs test instrumentation into the cloned EROFS system volume, and preserves
 the production data extent and truthful `deployment.json` filesystem declaration.
 It never modifies the source board or bypasses the production formatter.
 
+
+Before its persistent payload, the write boot checks the unified VFS cache:
+independent-open dirty reads, partial cross-page rewrites, last-close retention,
+append size visibility, explicit sync, dirty truncate/regrow, rename, and
+unlink/recreate identity. These checks use ordinary Native file APIs.
+
 The acceptance test writes and synchronizes 4 MiB through ordinary Native file
 APIs, renames it, creates 80 directory entries, enumerates them, unmounts, stops
 QEMU, and starts a new instance. The second instance verifies every byte,
@@ -55,6 +61,15 @@ APIs and does not depend on the media core. RAM-core and host fault-injection
 tests belong to the service module gate. A failed system test retains its logs
 and disposable disk for inspection.
 
-A final streaming pair writes 48 MiB, restarts QEMU, and reads it twice under the
-ordinary worker quota. The cold first read cannot be satisfied from the previous
+A streaming pair writes 96 MiB with host memory limited to 192 MiB and the
+physical disk capped at 4 MiB/s,
+restarts QEMU, and reads it twice under the ordinary worker quota. The slow
+write boot guards against admitting unbounded in-flight pages after clearing
+their dirty flags; a fast host-backed disk can conceal that failure. The cold first read cannot be satisfied from the previous
 boot's kernel cache, guarding against clean copies accumulating in the F2FS heap.
+
+Two additional write/restart pairs verify the default periodic checkpoint without
+calling sync: one leaves the volume idle for 35 seconds; the other keeps issuing
+writes for 35 seconds. QEMU is then terminated without unmount, and the next boot
+verifies the payload accepted before the interval. These cases test VFS-to-backend
+synchronization scheduling and acknowledged block writes, not physical controller power loss.
