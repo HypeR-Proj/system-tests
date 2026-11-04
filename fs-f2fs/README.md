@@ -13,7 +13,7 @@ python3 tests/fs-f2fs/run.py
 The entry prepares the generated execution view, builds the host formatter from
 the checked-in service sources and builds the current Native SDK/kernel/worker/probe,
 downloads the published I/O VM package, and runs eleven QEMU boots against a new
-128 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
+256 MiB disposable data volume. It never builds I/O VM Linux. `native-f2fs` is
 also discoverable by the system-test runner through `cases/native-f2fs.json`.
 
 All generated files, including configuration, remain below `OUT`. The default

@@ -30,7 +30,7 @@ def run(args):
 
     board = json.loads((ROOT / 'boards/qemu-minimal.json').read_text())
     board['disk']['partitions'].insert(0, {
-        'label': 'hyper-data', 'size-mib': 128, 'filesystem': 'f2fs', 'content': 'data'})
+        'label': 'hyper-data', 'size-mib': 256, 'filesystem': 'f2fs', 'content': 'data'})
     config = output / 'board.json'
     config.write_text(json.dumps(board, indent=2) + '\n')
     base = output / 'base'
