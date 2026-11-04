@@ -5,6 +5,7 @@
 """Keep bootstrap retirement acceptance strict about ownership and backing."""
 
 import importlib.util
+import json
 from itertools import repeat
 from pathlib import Path
 import tempfile
@@ -295,6 +296,12 @@ class ProviderRejectionEvidenceTests(unittest.TestCase):
     def test_fault_fixture_only_changes_its_new_system_copy(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            board = {'disk': {'partitions': [
+                {'content': 'data', 'filesystem': 'f2fs'},
+                {'content': 'system', 'filesystem': 'erofs'},
+                {'image': 'alpine-rootfs'},
+            ]}}
+            (root / 'board.json').write_text(json.dumps(board))
             source = root / 'original'
             (source / 'svc').mkdir(parents=True)
             for name in boot.PROVIDER_REJECTIONS.values():
@@ -310,6 +317,14 @@ class ProviderRejectionEvidenceTests(unittest.TestCase):
                 self.assertTrue((source / 'svc' / missing).is_file())
                 self.assertFalse((output / 'system-root/svc' / missing).exists())
                 invocation = pack.call_args.args[0]
+                self.assertIn(str(output / 'deployment.json'), invocation)
+                self.assertEqual(json.loads((root / 'board.json').read_text()), board)
+                fixture = json.loads((output / 'deployment.json').read_text())
+                self.assertEqual(fixture['disk']['partitions'], [
+                    {'content': 'data', 'filesystem': 'fat'},
+                    {'content': 'system', 'filesystem': 'erofs'},
+                    {'image': 'alpine-rootfs'},
+                ])
                 self.assertIn(str(output / 'disk.img'), invocation)
                 self.assertIn('alpine=/test/alpine.itb', invocation)
                 self.assertNotIn('--replace', invocation)

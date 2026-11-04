@@ -32,9 +32,18 @@ def prepare_provider_rejection(argv):
     system = args.output / 'system-root'
     shutil.copytree(args.system_root, system, symlinks=True)
     (system / 'svc' / PROVIDER_REJECTIONS[args.case]).unlink()
+    # These cases retain the static bootstrap provider, whose writable recovery
+    # worker is FAT. Keep that coverage with an explicit fixture board; default
+    # F2FS refusal during bootstrap recovery is checked by failed-handoff.
+    board = json.loads(args.board.read_text())
+    for partition in board['disk']['partitions']:
+        if partition.get('content') == 'data':
+            partition['filesystem'] = 'fat'
+    fixture_board = args.output / 'deployment.json'
+    fixture_board.write_text(json.dumps(board, indent=2) + '\n')
     pack = [sys.executable, '-B', str(Path(__file__).resolve().parents[2]
                                     / 'scripts/pack-board-image.py'),
-            '--board', str(args.board), '--output', str(args.output / 'disk.img'),
+            '--board', str(fixture_board), '--output', str(args.output / 'disk.img'),
             '--system-root', str(system), '--mkfs-erofs', str(args.mkfs_erofs)]
     for artifact in args.artifact:
         pack.extend(['--artifact', artifact])
