@@ -32,9 +32,18 @@ def prepare_provider_rejection(argv):
     system = args.output / 'system-root'
     shutil.copytree(args.system_root, system, symlinks=True)
     (system / 'svc' / PROVIDER_REJECTIONS[args.case]).unlink()
+    # These cases retain the static bootstrap provider, whose writable recovery
+    # worker is FAT. Keep that coverage with an explicit fixture board; default
+    # F2FS refusal during bootstrap recovery is checked by failed-handoff.
+    board = json.loads(args.board.read_text())
+    for partition in board['disk']['partitions']:
+        if partition.get('content') == 'data':
+            partition['filesystem'] = 'fat'
+    fixture_board = args.output / 'deployment.json'
+    fixture_board.write_text(json.dumps(board, indent=2) + '\n')
     pack = [sys.executable, '-B', str(Path(__file__).resolve().parents[2]
                                     / 'scripts/pack-board-image.py'),
-            '--board', str(args.board), '--output', str(args.output / 'disk.img'),
+            '--board', str(fixture_board), '--output', str(args.output / 'disk.img'),
             '--system-root', str(system), '--mkfs-erofs', str(args.mkfs_erofs)]
     for artifact in args.artifact:
         pack.extend(['--artifact', artifact])
@@ -229,7 +238,7 @@ def check_handoff_order(evidence):
         b'EROFS mounted at /system',
         b'[HypeR bootstrap stage 1][init] provisional system root active; preparing successor',
         b'HypeR system-startup: core supervision adopted',
-        b'FAT mounted at /data',
+        b'F2FS mounted at /data',
         b'HypeR bootstrap-retire: bootstrap retired; boot archive detached',
     ))
 
@@ -363,7 +372,7 @@ def main():
     parser.add_argument('--missing-worker', action='store_true',
                         help='boot a supplied archive with fs-erofs removed; keep controllers present')
     parser.add_argument('--missing-data-worker', action='store_true',
-                        help='boot and system payloads omit fs-fat; require formal init and Native services to survive')
+                        help='boot and system payloads omit fs-f2fs; require formal init and Native services to survive')
     parser.add_argument('--provider-case', choices=PROVIDER_REJECTIONS,
                         help='reject the real replacement before resource transfer; retain bootstrap providers')
     parser.add_argument('--manager-case', choices=(
@@ -474,7 +483,7 @@ def main():
             mounts = run('mount', rb' on / type erofs')
             if b' on /data type ' in mounts:
                 raise AssertionError('missing data worker unexpectedly mounted /data')
-            run('mount /data', rb'FAT recognized for /data, but filesystem worker is unavailable',
+            run('mount /data', rb'F2FS recognized for /data, but filesystem worker is unavailable',
                     fails=True)
             run('vmm start alpine', rb'initial configuration is unavailable', fails=True)
         if args.failed_handoff:
@@ -487,11 +496,12 @@ def main():
                 raise AssertionError('data mounted before formal init took ownership')
             # The fallback has only static bootstrap clients. Exercise the old
             # manager after its migration endpoint closed and topology rolled back.
-            run('mount -T /system/etc/fstab /data')
-            run('mount', rb'PARTUUID=[0-9a-f-]+ on /data type fat')
-            run('umount /data')
-            run('mount -T /system/etc/fstab /data')
-            run('umount /data')
+            run('mount -T /system/etc/fstab /data',
+                rb'F2FS recognized for /data, but filesystem worker is unavailable', fails=True)
+            run('cd /system/etc')
+            run('pwd', rb'/system/etc')
+            run('cd /')
+            run('mount', rb'PARTUUID=[0-9a-f-]+ on /system type erofs \(ro\)')
             session.pump(2)
         if args.manager_case:
             # Real Native storage and core service processes must survive all
@@ -517,7 +527,7 @@ def main():
             run('rm /data/manager-isolation.txt')
         if not (recovery or args.recovery or args.missing_data_worker or args.manager_case):
             system_services = run('ls /svc', rb'\bcomponent-manager\b')
-            for provider in (b'fs-fat', b'fs-erofs', b'fs-backend', b'io-runtime', b'console-raw'):
+            for provider in (b'fs-f2fs', b'fs-fat', b'fs-erofs', b'fs-backend', b'io-runtime', b'console-raw'):
                 if not re.search(rb'\b' + provider + rb'\b', system_services):
                     raise AssertionError(f'missing formal provider {provider!r}')
             run('ls /bin', rb'(?i)\bhandle\b')
@@ -552,9 +562,13 @@ def main():
                 metrics = json.loads(match[1])['metrics']
                 return metrics['owner.kernel.resident_pages']['value']
 
+            # Warm filesystem metadata and allocator pools independently of VM
+            # creation. The retirement check measures VM ownership rather than
+            # the first allocation of filesystem staging/cache resources.
+            run('cp /data/vm/alpine.itb /tmp/boot-system-image-warmup', timeout=120)
+            run('rm /tmp/boot-system-image-warmup')
             baseline_kernel_pages = kernel_pages()
-            # Drain the diagnostic output before sampling the quiescent user
-            # footprint. A warm image may grow reclaimable cache, not used RAM.
+            # Drain diagnostic output before sampling the quiescent footprint.
             session.pump(1)
             baseline_memory = memory_baseline(session, run)
 
@@ -595,11 +609,11 @@ def main():
             retired_vm_memory()
             run('vmm delete alpine')
             run('umount /data')
-            run('mount -o ro PARTLABEL=hyper-data /data')
-            run('cat /data/boot-system-test.txt', rb'\nSPLIT-SYSTEM-IO\n')
-            run('touch /data/must-not-write', fails=True)
-            run('umount /data')
+            # The current F2FS port rejects read-only recovery explicitly.
+            run('mount -o ro PARTLABEL=hyper-data /data',
+                rb'F2FS read-only mounts are not supported', fails=True)
             run('mount /data')
+            run('cat /data/boot-system-test.txt', rb'\nSPLIT-SYSTEM-IO\n')
             run('rm /data/boot-system-test.txt')
     if not recovery and b'[HypeR bootstrap stage 1][fallback-sh] recovery console ready' in args.log.read_bytes():
         raise AssertionError('successful boot started the fallback shell')
@@ -610,9 +624,9 @@ def main():
         check_manager_evidence(args.manager_case, args.log.read_bytes())
     if args.missing_data_worker:
         evidence = args.log.read_bytes()
-        if b'FAT recognized for /data, but filesystem worker is unavailable' not in evidence:
-            raise AssertionError('missing FAT worker was not reported by formal init')
-        if evidence.index(b'core supervision adopted') > evidence.index(b'FAT recognized for /data'):
+        if b'F2FS recognized for /data, but filesystem worker is unavailable' not in evidence:
+            raise AssertionError('missing F2FS worker was not reported by formal init')
+        if evidence.index(b'core supervision adopted') > evidence.index(b'F2FS recognized for /data'):
             raise AssertionError('data failure occurred before formal handoff')
     mode = (f'manager {args.manager_case}' if args.manager_case else
             'handoff rollback' if args.failed_handoff else

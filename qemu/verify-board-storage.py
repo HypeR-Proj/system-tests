@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 roolrz
 # SPDX-License-Identifier: Apache-2.0
 
-"""Exercise the Native FAT volume and verify its contents after a cold VM restart."""
+"""Exercise the Native data volume and verify its contents after a cold VM restart."""
 
 import argparse
 import importlib.util
@@ -75,7 +75,7 @@ def boot(args, mode):
             if b'[HypeR bootstrap stage 1][io-runtime] IO VM: ' not in boot:
                 raise RuntimeError('forwarded I/O VM log prefix missing')
             await_text(rb'hyper-sh\$ ')
-            child.stdin.write(f'/bin/storage-probe {mode}\n'.encode())
+            child.stdin.write(f'/bin/storage-probe {mode} {args.naming}\n'.encode())
             child.stdin.flush()
             if mode == 'write':
                 await_text(rb'BOARD-STORAGE: remote recursive removal PASS\n', timeout=180)
@@ -94,7 +94,7 @@ def boot(args, mode):
             child.stdin.flush()
             copied = await_text(rb'hyper-sh\$ ')
             if status(copied) != 0:
-                raise RuntimeError(f'copy across system/FAT failed: {copied!r}')
+                raise RuntimeError(f'copy across system/data failed: {copied!r}')
             child.stdin.write(f'vmm status {args.observed_name}\n'.encode())
             child.stdin.flush()
             observed = await_text(rb'hyper-sh\$ ')
@@ -234,6 +234,8 @@ def main():
     if (args.stack_elf is None) != (args.stack_config is None):
         parser.error('--stack-elf and --stack-config must be supplied together')
     board = Board.load(args.board)
+    data = next(part for part in board.partitions if part.content == 'data')
+    args.naming = 'fat-aliases' if data.filesystem == 'fat' else 'case-sensitive'
     io_vm = board.source['io-vm']
     args.observed_name = io_vm['name']
     args.observed_image = io_vm['image']

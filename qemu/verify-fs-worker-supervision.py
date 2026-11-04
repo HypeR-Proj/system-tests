@@ -5,7 +5,7 @@
 """Observe mounted worker death without losing its parent or unrelated mounts.
 
 The disposable disk boots the normal component manager, fs-backend and EROFS
-root. Only the FAT worker executable is replaced by a test provider: it retains
+root. Only the F2FS worker executable is replaced by a test provider: it retains
 the volume capability, never writes media, and exits/faults during a write RPC.
 """
 
@@ -28,7 +28,7 @@ def prepare(args):
     args.output.mkdir(parents=True, exist_ok=False)
     system = args.output / 'system-root'
     shutil.copytree(args.system_root, system, symlinks=True)
-    shutil.copy2(args.worker, system / 'svc/fs-fat')
+    shutil.copy2(args.worker, system / 'svc/fs-f2fs')
     shutil.copy2(args.reporter, system / 'bin/test-report')
     command = [sys.executable, '-B', str(ROOT / 'scripts/pack-board-image.py'),
                '--board', str(args.board), '--output', str(args.output / 'disk.img'),
@@ -68,7 +68,7 @@ def run(args):
                    + re.escape(reason.encode()), 15)
         records = journal.message('/fs-backend', reason, stream='stderr')
         failures = [r for r in records if reason in r['text']]
-        if len(failures) != 1 or not all(s in failures[0]['text'] for s in ('fs-fat', '/data', '0x')):
+        if len(failures) != 1 or not all(s in failures[0]['text'] for s in ('fs-f2fs', '/data', '0x')):
             raise AssertionError(f'missing or repeated worker identity/reason: {failures!r}')
         until = time.monotonic() + 15
         while True:

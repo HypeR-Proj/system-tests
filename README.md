@@ -31,6 +31,11 @@ Those tests belong to this repository's automatic module check. Runtime cases
 run only after an explicit system-verification request. Execution logs and
 per-case elapsed times are retained by the framework under OUT/results.
 
+Boot-system acceptance uses the default F2FS data partition and checks that
+bootstrap recovery refuses it while retaining EROFS access. The two rejected
+provider-replacement fixtures explicitly use FAT data partitions to verify
+writable recovery through the retained static bootstrap provider.
+
 The Native service-lifecycle case also runs capability rendezvous through the
 installed Rust SDK: receiver-local rights failure is distinct from matched
 capacity/type/rights rejection, rejected MOVE keeps its source owner, and a

@@ -40,6 +40,13 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             if count != 81 {
                 return Err(format!("directory count {count}"));
             }
+            // Include rename and directory creation in the acknowledged checkpoint.
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(dir.join("renamed"))
+                .map_err(|e| format!("open checkpoint handle: {e:?}"))?
+                .sync_all()
+                .map_err(|e| format!("checkpoint before restart: {e:?}"))?;
         }
         "writeback" => {
             let file = root.join("f2fs-writeback");
@@ -61,6 +68,33 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
                 }
             }
             drop(f);
+            std::fs::remove_file(file).map_err(show)?;
+        }
+        "stream-write" => {
+            let file = root.join("f2fs-stream");
+            let chunk = &bytes[..128 * 1024];
+            let mut f = std::fs::File::create(&file).map_err(show)?;
+            // Exceed the old clean-page retention failure under the normal quota.
+            for index in 0..384 {
+                f.write_all(chunk)
+                    .map_err(|e| format!("stream write {index}: {e:?}"))?;
+            }
+            f.sync_all().map_err(show)?;
+        }
+        "stream-verify" => {
+            let file = root.join("f2fs-stream");
+            let chunk = &bytes[..128 * 1024];
+            let mut read = vec![0; chunk.len()];
+            for pass in 0..2 {
+                let mut f = std::fs::File::open(&file).map_err(show)?;
+                for index in 0..384 {
+                    f.read_exact(&mut read)
+                        .map_err(|e| format!("stream read {pass}/{index}: {e:?}"))?;
+                    if read != chunk {
+                        return Err(format!("stream mismatch {pass}/{index}"));
+                    }
+                }
+            }
             std::fs::remove_file(file).map_err(show)?;
         }
         "verify" => {
@@ -93,7 +127,9 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             std::fs::remove_dir_all(&dir).map_err(|e| format!("remove tree: {e:?}"))?;
         }
         _ => {
-            return Err("usage: f2fs-smoke write ROOT | verify ROOT | writeback ROOT".into());
+            return Err(
+                "usage: f2fs-smoke write ROOT | verify ROOT | writeback ROOT | stream-write ROOT | stream-verify ROOT".into(),
+            );
         }
     }
     Ok(())

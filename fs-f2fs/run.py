@@ -28,11 +28,9 @@ def run(args):
     def command(*argv):
         subprocess.run([str(arg) for arg in argv], cwd=ROOT, env=env, check=True)
 
-    command(sys.executable, ROOT / 'svc/fs-f2fs/build.py', '--host', '--output',
-            build_output / 'build/fs-f2fs/host')
     board = json.loads((ROOT / 'boards/qemu-minimal.json').read_text())
     board['disk']['partitions'].insert(0, {
-        'label': 'hyper-data', 'size-mib': 128, 'filesystem': 'fat', 'content': 'data'})
+        'label': 'hyper-data', 'size-mib': 128, 'filesystem': 'f2fs', 'content': 'data'})
     config = output / 'board.json'
     config.write_text(json.dumps(board, indent=2) + '\n')
     base = output / 'base'
@@ -46,8 +44,7 @@ def run(args):
     probe = build_output / 'staging/modules/system-tests/system/f2fs-smoke'
     fixture = output / 'fixture'
     command(sys.executable, ROOT / 'tests/fs-f2fs/prepare.py', '--base', base,
-            '--output', fixture, '--worker', worker, '--probe', probe,
-            '--library', build_output / 'build/fs-f2fs/host/libhyper-f2fs.so')
+            '--output', fixture, '--worker', worker, '--probe', probe)
     command(sys.executable, ROOT / 'tests/qemu/verify-f2fs.py', '--qemu', args.qemu,
             '--image', ROOT / 'kernel/target/aarch64-unknown-none-softfloat/kernel/hyper.img',
             '--initramfs', fixture / 'bootstrap.cpio', '--disk', fixture / 'disk.img',
