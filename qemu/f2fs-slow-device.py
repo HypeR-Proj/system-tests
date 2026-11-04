@@ -8,12 +8,19 @@ import sys
 RATE = 4 * 1024 * 1024
 args = sys.argv[1:]
 selected = 0
+memory = 0
 for index in range(len(args) - 1):
+    if args[index] == '-m':
+        args[index + 1] = '192M'
+        memory += 1
     if args[index] == '-drive' and args[index + 1].startswith('if=none,id=physicaldisk,'):
         args[index + 1] += f',bps_wr={RATE}'
         selected += 1
+if memory != 1:
+    raise SystemExit('F2FS slow-device test requires exactly one memory argument')
 if selected != 1:
     raise SystemExit('F2FS slow-device test requires exactly one physical backing drive')
+print('F2FS slow-device host memory: 192 MiB', file=sys.stderr, flush=True)
 qemu = os.environ['HYPER_F2FS_TEST_QEMU']
 print(f'F2FS slow-device write rate: {RATE} bytes/s', file=sys.stderr, flush=True)
 os.execvp(qemu, [qemu, *args])

@@ -22,7 +22,8 @@ def boot(args, mode, *, clean=True, label=None):
     log = args.log.with_suffix(f'.{label or mode}.log')
     with Session(command, log) as session:
         boot_log = session.await_text(rb'hyper-sh\$ ', timeout=180)
-        if slow and b'F2FS slow-device write rate: 4194304 bytes/s' not in boot_log:
+        if slow and (b'F2FS slow-device write rate: 4194304 bytes/s' not in boot_log
+                     or b'F2FS slow-device host memory: 192 MiB' not in boot_log):
             raise RuntimeError('F2FS streaming boot did not apply its device rate limit')
         session.send(checked('mount'))
         mounts = session.await_text(rb'hyper-sh\$ ')

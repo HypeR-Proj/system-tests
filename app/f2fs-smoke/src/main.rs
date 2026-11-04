@@ -20,6 +20,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
     let bytes = payload();
     match mode {
         "write" => {
+            cache_coherence(root)?;
             std::fs::create_dir(&dir).map_err(show)?;
             let mut f = std::fs::File::create(&file).map_err(show)?;
             for (index, part) in bytes.chunks(128 * 1024).enumerate() {
@@ -52,7 +53,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             let file = root.join("f2fs-periodic");
             std::fs::write(&file, &bytes[..16384]).map_err(show)?;
             // Neither close nor this fixture requests sync. The worker's
-            // default 30-second checkpoint must cover the preceding payload.
+            // default 30-second VFS sync must drain data before checkpoint.
             if mode == "periodic-idle" {
                 std::thread::sleep(std::time::Duration::from_secs(35));
             } else {
@@ -77,7 +78,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             let file = root.join("f2fs-writeback");
             let chunk = &bytes[..128 * 1024];
             let mut f = std::fs::File::create(&file).map_err(show)?;
-            // Exceed the core's 8 MiB threshold before issuing an explicit sync.
+            // Exceed the VFS dirty-page bound before issuing an explicit sync.
             for index in 0..96 {
                 f.write_all(chunk)
                     .map_err(|e| format!("writeback chunk {index}: {e:?}"))?;
@@ -99,8 +100,8 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             let file = root.join("f2fs-stream");
             let chunk = &bytes[..128 * 1024];
             let mut f = std::fs::File::create(&file).map_err(show)?;
-            // Exceed the old clean-page retention failure under the normal quota.
-            for index in 0..384 {
+            // Exceed cache headroom on the 192 MiB slow-device boot.
+            for index in 0..768 {
                 f.write_all(chunk)
                     .map_err(|e| format!("stream write {index}: {e:?}"))?;
             }
@@ -112,7 +113,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             let mut read = vec![0; chunk.len()];
             for pass in 0..2 {
                 let mut f = std::fs::File::open(&file).map_err(show)?;
-                for index in 0..384 {
+                for index in 0..768 {
                     f.read_exact(&mut read)
                         .map_err(|e| format!("stream read {pass}/{index}: {e:?}"))?;
                     if read != chunk {
@@ -159,6 +160,74 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+fn cache_coherence(root: &Path) -> Result<(), String> {
+    let path = root.join("f2fs-cache-coherence");
+    let mut writer = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .read(true)
+        .write(true)
+        .open(&path)
+        .map_err(show)?;
+    let mut expected = vec![0x51; 8192];
+    writer.write_all(&expected).map_err(show)?;
+    // A separate open must read the accepted dirty pages before any sync.
+    if std::fs::read(&path).map_err(show)? != expected {
+        return Err("dirty alias read".into());
+    }
+    writer.seek(SeekFrom::Start(4093)).map_err(show)?;
+    writer.write_all(b"cross-page").map_err(show)?;
+    expected[4093..4103].copy_from_slice(b"cross-page");
+    if std::fs::read(&path).map_err(show)? != expected {
+        return Err("partial dirty rewrite".into());
+    }
+    drop(writer);
+    // Closing the last handle must not discard dirty content or its identity.
+    if std::fs::read(&path).map_err(show)? != expected {
+        return Err("closed dirty file".into());
+    }
+    let mut append = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .map_err(show)?;
+    append.write_all(b"tail").map_err(show)?;
+    expected.extend_from_slice(b"tail");
+    if append.metadata().map_err(show)?.len() != expected.len() as u64 {
+        return Err("cached extension metadata".into());
+    }
+    append.sync_all().map_err(show)?;
+    drop(append);
+    if std::fs::read(&path).map_err(show)? != expected {
+        return Err("synced cache version".into());
+    }
+    let mut writer = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .map_err(show)?;
+    writer.write_all(b"new").map_err(show)?;
+    writer.set_len(2).map_err(show)?;
+    writer.set_len(9000).map_err(show)?;
+    drop(writer);
+    let data = std::fs::read(&path).map_err(show)?;
+    if data.len() != 9000 || &data[..2] != b"ne" || data[2..].iter().any(|b| *b != 0) {
+        return Err("dirty truncate/regrow".into());
+    }
+    std::fs::write(&path, b"pending before rename").map_err(show)?;
+    let renamed = root.join("f2fs-cache-renamed");
+    std::fs::rename(&path, &renamed).map_err(show)?;
+    if std::fs::read(&renamed).map_err(show)? != b"pending before rename" {
+        return Err("dirty rename".into());
+    }
+    std::fs::remove_file(&renamed).map_err(show)?;
+    std::fs::write(&renamed, b"new incarnation").map_err(show)?;
+    if std::fs::read(&renamed).map_err(show)? != b"new incarnation" {
+        return Err("dirty unlink/recreate".into());
+    }
+    std::fs::remove_file(&renamed).map_err(show)?;
+    println!("F2FS-SMOKE: unified cache coherence PASS");
+    Ok(())
+}
+
 fn main() -> std::process::ExitCode {
     let mode = std::env::args().nth(1).unwrap_or_default();
     let result = mounted(
