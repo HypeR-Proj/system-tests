@@ -299,8 +299,9 @@ scheduler interleavings.
 
 `make test-boot-system ARCH=aarch64` reproduces the split-root and recovery
 part of `board-storage`. It creates an isolated disk, checks supervision handoff,
-the final namespace, shell/tool capabilities, VM start/stop and writable/read-only
-unmount/remount behavior, then boots the same archive without storage controllers
+the final namespace, shell/tool capabilities, VM start/stop, writable remounts
+and explicit F2FS read-only rejection followed by a successful writable mount,
+then boots the same archive without storage controllers
 and requires the static recovery shell to remain usable. Normal boot also checks
 that provider startup rows are not repeated, start/total durations retain two
 decimal places, and retirement completes before the shell prompt. These display
@@ -308,12 +309,14 @@ checks reassemble interleaved kernel diagnostics before parsing ANSI output;
 the `scripts` suite covers stack-audit insertion inside status rows and escape
 sequences without hiding fatal diagnostics. A third boot uses
 a copied bootstrap policy selecting an exiting init candidate; it verifies
-namespace rollback, live storage services, and static recovery mount operations.
+namespace rollback, live storage services, EROFS recovery access and explicit
+F2FS worker unavailability in the static recovery environment.
 Two further boots use separate system-image copies missing the formal I/O runtime
-or EROFS worker. They require failed replacement preparation to retain the original
+or EROFS worker, with explicit FAT data volumes supported by bootstrap. They
+require failed replacement preparation to retain the original
 providers and `/boot`, keep the formal shell available, and serve mount, write,
 unmount and remount requests through the retained filesystem manager.
-Three mounted-worker fault cases replace only the formal FAT executable with a
+Three mounted-worker fault cases replace only the formal F2FS executable with a
 test provider that never writes media. Explicit process exit and a user CPU
 exception must be observable in the journal and component/mount status, while
 root listing still displays healthy entries and `/tmp` remains usable. A fault
