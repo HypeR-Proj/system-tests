@@ -48,6 +48,31 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
                 .sync_all()
                 .map_err(|e| format!("checkpoint before restart: {e:?}"))?;
         }
+        "periodic-idle" | "periodic-busy" => {
+            let file = root.join("f2fs-periodic");
+            std::fs::write(&file, &bytes[..16384]).map_err(show)?;
+            // Neither close nor this fixture requests sync. The worker's
+            // default 30-second checkpoint must cover the preceding payload.
+            if mode == "periodic-idle" {
+                std::thread::sleep(std::time::Duration::from_secs(35));
+            } else {
+                use std::io::{Seek, SeekFrom};
+                let mut noise =
+                    std::fs::File::create(root.join("f2fs-periodic-noise")).map_err(show)?;
+                let start = std::time::Instant::now();
+                while start.elapsed() < std::time::Duration::from_secs(35) {
+                    noise.seek(SeekFrom::Start(0)).map_err(show)?;
+                    noise.write_all(&bytes[..4096]).map_err(show)?;
+                }
+            }
+        }
+        "periodic-verify" => {
+            let file = root.join("f2fs-periodic");
+            if std::fs::read(&file).map_err(show)? != bytes[..16384] {
+                return Err("periodic checkpoint lost payload".into());
+            }
+            std::fs::remove_file(file).map_err(show)?;
+        }
         "writeback" => {
             let file = root.join("f2fs-writeback");
             let chunk = &bytes[..128 * 1024];
@@ -128,7 +153,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
         }
         _ => {
             return Err(
-                "usage: f2fs-smoke write ROOT | verify ROOT | writeback ROOT | stream-write ROOT | stream-verify ROOT".into(),
+                "usage: f2fs-smoke MODE ROOT (write, verify, writeback, stream-write, stream-verify, periodic-idle, periodic-busy, periodic-verify)".into(),
             );
         }
     }

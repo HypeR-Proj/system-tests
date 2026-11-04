@@ -150,7 +150,7 @@ def main():
                     for path in [*sorted(SOURCE.glob('*.c')), *sorted(SOURCE.glob('*.h')),
                                  *sorted(SOURCE.glob('*.py')), SOURCE / 'README.md',
                                  PLATFORM / 'platform.h', PLATFORM / 'hyper.c', PLATFORM / 'linux.c',
-                                 ROOT / 'scripts/io-vm.lock.json', ROOT / 'boards/rpi5.json',
+                                 ROOT / 'boards/rpi5.json',
                                  ROOT / 'bootstrap/stage1/io-runtime/Cargo.toml',
                                  ROOT / 'bootstrap/stage1/io-runtime/src/runtime/mod.rs',
                                  ROOT / 'bootstrap/stage1/io-runtime/tests/fixtures/physical_retirement.rs']},

@@ -56,3 +56,7 @@ if __name__ == '__main__':
 
     boot(args, 'stream-write')
     boot(args, 'stream-verify')
+
+    for mode in ['periodic-idle', 'periodic-busy']:
+        boot(args, mode, clean=False)
+        boot(args, 'periodic-verify', label=mode + '-verify')
