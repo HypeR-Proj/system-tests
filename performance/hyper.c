@@ -107,7 +107,7 @@ void bench_sync(uint64_t file)
 
 void bench_sync_volume(uint64_t file)
 {
-	/* The current FAT file-sync operation commits the mounted volume. */
+	/* Native file-sync commits the mounted volume for FAT and F2FS. */
 	bench_sync(file);
 }
 

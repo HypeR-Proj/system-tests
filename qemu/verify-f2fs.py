@@ -12,12 +12,18 @@ from hyper_test.shell_status import checked, status
 
 
 def boot(args, mode, *, clean=True, label=None):
-    command = [sys.executable, str(ROOT / 'scripts/run-io-vm.py'), '--qemu', args.qemu,
+    slow = mode == 'stream-write'
+    qemu = str(ROOT / 'tests/qemu/f2fs-slow-device.py') if slow else args.qemu
+    command = [sys.executable, str(ROOT / 'scripts/run-io-vm.py'), '--qemu', qemu,
                '--image', str(args.image), '--initramfs', str(args.initramfs),
                '--disk', str(args.disk), '--board', str(args.board)]
+    if slow:
+        command = ['env', f'HYPER_F2FS_TEST_QEMU={args.qemu}', *command]
     log = args.log.with_suffix(f'.{label or mode}.log')
     with Session(command, log) as session:
-        session.await_text(rb'hyper-sh\$ ', timeout=180)
+        boot_log = session.await_text(rb'hyper-sh\$ ', timeout=180)
+        if slow and b'F2FS slow-device write rate: 4194304 bytes/s' not in boot_log:
+            raise RuntimeError('F2FS streaming boot did not apply its device rate limit')
         session.send(checked('mount'))
         mounts = session.await_text(rb'hyper-sh\$ ')
         if status(mounts) != 0 or b'type f2fs (rw)' not in mounts:

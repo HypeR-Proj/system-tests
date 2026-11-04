@@ -55,8 +55,10 @@ APIs and does not depend on the media core. RAM-core and host fault-injection
 tests belong to the service module gate. A failed system test retains its logs
 and disposable disk for inspection.
 
-A streaming pair writes 48 MiB, restarts QEMU, and reads it twice under the
-ordinary worker quota. The cold first read cannot be satisfied from the previous
+A streaming pair writes 48 MiB with the physical disk capped at 4 MiB/s,
+restarts QEMU, and reads it twice under the ordinary worker quota. The slow
+write boot guards against admitting unbounded in-flight pages after clearing
+their dirty flags; a fast host-backed disk can conceal that failure. The cold first read cannot be satisfied from the previous
 boot's kernel cache, guarding against clean copies accumulating in the F2FS heap.
 
 Two additional write/restart pairs verify the default periodic checkpoint without
