@@ -4,6 +4,7 @@
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
 mod admission;
 mod bounded_admission;
+mod graceful_stop;
 mod publication;
 mod rendezvous;
 mod request_deadlines;
@@ -50,6 +51,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("SERVICE_FAILURE_ATTEMPT");
             return Err("intentional failure".into());
         }
+        Some("stop-notify") => graceful_stop::notify()?,
+        Some("stop-ignore") => graceful_stop::ignore()?,
         Some("stop-component" | "stop-component-then-report") => {
             use hyper_os::{capability_channel::*, handle::*};
             let mut startup = hyper_rt::process::startup()?;
@@ -312,7 +315,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some("publication") => publication::verify()?,
         _ => {
             return Err(
-                "expected plain, journal-burst, fail, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, ipc, bounded-admission, journal-admission, request-deadlines, or publication"
+                "expected plain, journal-burst, fail, stop-notify, stop-ignore, stop-component, fault, child-failure, terminal-disconnect, memory-lock, echo, connect, idle, timeout, observe, ipc, bounded-admission, journal-admission, request-deadlines, or publication"
                     .into(),
             );
         }
