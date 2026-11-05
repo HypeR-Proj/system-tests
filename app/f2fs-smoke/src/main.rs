@@ -74,6 +74,25 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
             }
             std::fs::remove_file(file).map_err(show)?;
         }
+        "fsync-write" => {
+            let file = root.join("f2fs-roll-forward");
+            let mut f = std::fs::File::create(&file).map_err(show)?;
+            f.write_all(b"checkpoint baseline").map_err(show)?;
+            f.sync_all().map_err(show)?;
+            f.seek(SeekFrom::Start(0)).map_err(show)?;
+            f.write_all(&bytes).map_err(show)?;
+            f.sync_data().map_err(show)?;
+            f.seek(SeekFrom::Start(0)).map_err(show)?;
+            f.write_all(&bytes[..16384]).map_err(show)?;
+            f.sync_all().map_err(show)?;
+        }
+        "fsync-verify" => {
+            let file = root.join("f2fs-roll-forward");
+            if std::fs::read(&file).map_err(show)? != bytes {
+                return Err("file recovery log lost synchronized contents/size".into());
+            }
+            std::fs::remove_file(file).map_err(show)?;
+        }
         "writeback" => {
             let file = root.join("f2fs-writeback");
             let chunk = &bytes[..128 * 1024];
@@ -154,7 +173,7 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
         }
         _ => {
             return Err(
-                "usage: f2fs-smoke MODE ROOT (write, verify, writeback, stream-write, stream-verify, periodic-idle, periodic-busy, periodic-verify)".into(),
+                "usage: f2fs-smoke MODE ROOT (write, verify, fsync-write, fsync-verify, writeback, stream-write, stream-verify, periodic-idle, periodic-busy, periodic-verify)".into(),
             );
         }
     }

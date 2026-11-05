@@ -26,6 +26,7 @@ use std::{
 mod directory;
 mod directory_volume;
 mod partial_write;
+mod sync_scope;
 mod volume;
 
 type Result<T> = std::result::Result<T, String>;
@@ -102,6 +103,7 @@ impl Worker {
         builder.set_memory_lock_allowed(true).map_err(show)?;
         builder.add_argument("/init").map_err(show)?;
         builder.add_argument("--worker").map_err(show)?;
+        builder.add_argument(path).map_err(show)?;
         builder
             .add_handle_duplicate(
                 hyper_rt::process::console().map_err(show)?.as_handle_ref(),
@@ -296,6 +298,7 @@ fn suite(startup: &mut Startup<'_>) -> Result<()> {
     protection_exit(startup, &root)?;
     directory::run(startup, &root)?;
     partial_write::run(startup, &root)?;
+    sync_scope::run(startup, &root)?;
     Ok(())
 }
 
@@ -812,6 +815,15 @@ fn run() -> Result<bool> {
     let mut startup = hyper_rt::process::startup().map_err(show)?;
     if std::env::args().nth(1).as_deref() == Some("--worker") {
         let notice = startup.take(NOTICE).map_err(show)?;
+        if std::env::args().nth(2).as_deref() == Some("/fs-sync-scope") {
+            let mut volume = sync_scope::ScopedVolume {
+                notice,
+                writes: [0; 2],
+                synced: false,
+            };
+            let _completion = hyper_fs_service::serve_buffered(&mut startup, &mut volume)?;
+            return Ok(false);
+        }
         let mut volume = volume::FixtureVolume {
             notice,
             snapshot: Some(vec![0x5a; 8192]),

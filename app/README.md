@@ -13,7 +13,7 @@ enter a product deployment.
 | Program | Selection | Purpose |
 | --- | --- | --- |
 | [vm-smoke](vm-smoke/README.md) | `make test-vm-smoke` | Boot a privileged static `/init` fixture and exercise VM ownership, trapped MMIO, interrupts and retirement. |
-| [fs-failure](fs-failure/) | `make test-filesystem-failure` | Boot a static `/init` fixture and test remote filesystem replies, backend failure, protected mappings and bounded directory traversal. |
+| [fs-failure](fs-failure/) | `make test-filesystem-failure` | Boot a static `/init` fixture and test remote filesystem replies, backend failure, protected mappings, bounded directory traversal and per-file dirty-page synchronization. |
 | [terminal-probe](terminal-probe/) | Development profile; `make test-terminal` | Exercise terminal modes, editing, flow control and foreground lease restoration. |
 | [retirement-probe](retirement-probe/) | Development profile; `make test-process-retirement` | Stop real children and verify private memory/register observation, endpoint closure, authority limits and revocation. |
 | [lifecycle-stress](lifecycle-stress/) | Development profile; `make test-lifecycle-stress` | Seeded concurrent handle churn, capability transfer and process termination; `lifecycle-stress trace` exercises bounded two-hop RPC tracing; see [fuzz/stress commands](../stress/README.md). |
