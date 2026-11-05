@@ -13,11 +13,13 @@ uint64_t bench_open(const char *path, int mode);
 void bench_close(uint64_t file);
 void bench_read(uint64_t file, uint64_t offset, void *buffer, size_t size);
 void bench_write(uint64_t file, uint64_t offset, const void *buffer, size_t size);
+/* Synchronize this file, including its recovery metadata. */
 void bench_sync(uint64_t file);
 
 /* Creating a payload opens it read/write and truncates any previous contents. */
 enum bench_open_mode { BENCH_READ_ONLY, BENCH_CREATE, BENCH_READ_WRITE };
 
+/* Synchronize the filesystem containing this file. */
 void bench_sync_volume(uint64_t file);
 void bench_pause(uint64_t nanoseconds);
 int bench_main(void);

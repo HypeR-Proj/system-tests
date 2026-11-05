@@ -47,9 +47,16 @@ void bench_read(uint64_t file, uint64_t offset, void *buf, size_t size) {
 void bench_write(uint64_t file, uint64_t offset, const void *buf, size_t size) {
     if (pwrite(file, buf, size, offset) != (ssize_t)size) bench_fail("write", 0);
 }
-void bench_sync_volume(uint64_t file) { if (fsync(file)) exit(1); }
+static unsigned file_syncs, volume_syncs;
+void bench_sync(uint64_t file) { if (fsync(file)) exit(1); file_syncs++; }
+/* Host tests verify dispatch and records, not physical whole-volume semantics. */
+void bench_sync_volume(uint64_t file) { if (fsync(file)) exit(1); volume_syncs++; }
 void bench_pause(uint64_t ns) { (void)ns; }
-int main(int argc, char **argv) { return storage_main(argc, argv); }
+int main(int argc, char **argv) {
+    int result = storage_main(argc, argv);
+    printf("HOST-SYNC,file=%u,volume=%u\n", file_syncs, volume_syncs);
+    return result;
+}
 '''
 
 
@@ -132,6 +139,21 @@ class Qualification(unittest.TestCase):
         self.assertEqual(before, self.file.read_bytes())
         self.run_case('recover', 123, 0, success=False)
 
+    def test_sync_scopes_dispatch_without_weakening_legacy_modes(self):
+        for suffix, scope in (('', 2), ('-volume', 2), ('-file', 1)):
+            with self.subTest(suffix=suffix):
+                for mode in ('write', 'overwrite', 'sync4k'):
+                    result = self.run_case(mode + suffix)
+                    count = 128 if mode == 'sync4k' else 1
+                    self.assertIn('STORAGE,FORMAT,123,2\n', result.stdout)
+                    self.assertIn(f'STORAGE,SYNC_SCOPE,123,{scope}\n', result.stdout)
+                    expected = f'file={count},volume=0' if scope == 1 else f'file=0,volume={count}'
+                    self.assertIn('HOST-SYNC,' + expected, result.stdout)
+        result = self.run_case('prepare')
+        self.assertIn('HOST-SYNC,file=0,volume=1', result.stdout)
+        result = self.run_case('durable')
+        self.assertIn('HOST-SYNC,file=0,volume=2', result.stdout)
+
     def test_external_oracle_rejects_partial_missing_or_duplicate_ack(self):
         log = self.root / 'power-cut.log'
         prefix = ('STORAGE,BEGIN,7,durable\nSTORAGE,PAYLOAD_BYTES,7,1073741824\n'
@@ -154,6 +176,33 @@ class Qualification(unittest.TestCase):
             results.measurements(log)
         log.write_text(prefix + 'STORAGE,VERIFIED,7,1073741824\nSTORAGE,END,7,0\n')
         self.assertAlmostEqual(results.measurements(log)[0]['mib_per_second'], 1024 / 3)
+
+    def test_comparison_requires_explicit_matching_scope(self):
+        log = self.root / 'measurement.log'
+        def rows(command, header='', **kwargs):
+            log.write_text(f'STORAGE,BEGIN,7,{command}\n' + header +
+                           'STORAGE,PAYLOAD_BYTES,7,1073741824\n'
+                           'STORAGE,WRITE_NS,7,2000000000\nSTORAGE,SYNC_NS,7,1000000000\n'
+                           'STORAGE,TOTAL_NS,7,3000000000\n'
+                           'STORAGE,VERIFIED,7,1073741824\nSTORAGE,END,7,0\n')
+            return results.measurements(log, **kwargs)
+        legacy = rows('write')
+        with self.assertRaisesRegex(ValueError, 'legacy log'):
+            results.comparisons({'hyper': legacy, 'linux': legacy})
+        legacy_volume = rows('write', legacy_scope='volume')
+        header = 'STORAGE,FORMAT,7,2\nSTORAGE,REQUEST_BYTES,7,131072\n'
+        volume = rows('write-volume', header + 'STORAGE,SYNC_SCOPE,7,2\n')
+        file = rows('write-file', header + 'STORAGE,SYNC_SCOPE,7,1\n')
+        with self.assertRaisesRegex(ValueError, 'incompatible'):
+            results.comparisons({'hyper': file, 'linux': volume})
+        self.assertEqual(results.comparisons({'hyper': volume, 'linux': legacy_volume})
+                         ['write-volume']['hyper_over_linux'], 1)
+        self.assertEqual(results.comparisons({'hyper': file, 'linux': file})
+                         ['write-file']['hyper_over_linux'], 1)
+        for bad in ('', 'STORAGE,SYNC_SCOPE,7,2\n',
+                    'STORAGE,SYNC_SCOPE,7,1\nSTORAGE,SYNC_SCOPE,7,1\n'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                rows('write-file', header + bad)
 
 
 if __name__ == '__main__':

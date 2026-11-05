@@ -28,6 +28,7 @@ mod directory_volume;
 mod partial_write;
 mod sync_scope;
 mod volume;
+mod writeback_pressure;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -299,6 +300,7 @@ fn suite(startup: &mut Startup<'_>) -> Result<()> {
     directory::run(startup, &root)?;
     partial_write::run(startup, &root)?;
     sync_scope::run(startup, &root)?;
+    writeback_pressure::run(startup, &root)?;
     Ok(())
 }
 
@@ -815,6 +817,11 @@ fn run() -> Result<bool> {
     let mut startup = hyper_rt::process::startup().map_err(show)?;
     if std::env::args().nth(1).as_deref() == Some("--worker") {
         let notice = startup.take(NOTICE).map_err(show)?;
+        if std::env::args().nth(2).as_deref() == Some("/fs-writeback-pressure") {
+            let mut volume = writeback_pressure::PressureVolume::new(notice);
+            let _completion = hyper_fs_service::serve_buffered(&mut startup, &mut volume)?;
+            return Ok(false);
+        }
         if std::env::args().nth(2).as_deref() == Some("/fs-sync-scope") {
             let mut volume = sync_scope::ScopedVolume {
                 notice,

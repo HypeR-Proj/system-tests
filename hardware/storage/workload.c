@@ -49,7 +49,15 @@ static void verify(uint64_t file, uint64_t run, unsigned epoch)
 	qual_record("VERIFIED", run, QUAL_BYTES);
 }
 
-static void write_payload(uint64_t file, uint64_t run, unsigned epoch)
+static void sync_payload(uint64_t file, int file_scope)
+{
+	if (file_scope)
+		bench_sync(file);
+	else
+		bench_sync_volume(file);
+}
+
+static void write_payload(uint64_t file, uint64_t run, unsigned epoch, int file_scope)
 {
 	uint64_t start = bench_clock();
 	for (uint64_t offset = 0; offset < QUAL_BYTES; offset += sizeof(buffer)) {
@@ -57,7 +65,7 @@ static void write_payload(uint64_t file, uint64_t run, unsigned epoch)
 		bench_write(file, offset, buffer, sizeof(buffer));
 	}
 	uint64_t written = bench_clock();
-	bench_sync_volume(file);
+	sync_payload(file, file_scope);
 	uint64_t synced = bench_clock();
 	qual_record("WRITE_NS", run, written - start);
 	qual_record("SYNC_NS", run, synced - written);
@@ -65,7 +73,7 @@ static void write_payload(uint64_t file, uint64_t run, unsigned epoch)
 	verify(file, run, epoch);
 }
 
-static void sync_writes(uint64_t file, uint64_t run)
+static void sync_writes(uint64_t file, uint64_t run, int file_scope)
 {
 	uint64_t latency[128];
 	uint32_t random = 54321;
@@ -78,7 +86,7 @@ static void sync_writes(uint64_t file, uint64_t run)
 		qual_fill(buffer, 4096, offset, run, 1);
 		uint64_t start = bench_clock();
 		bench_write(file, offset, buffer, 4096);
-		bench_sync_volume(file);
+		sync_payload(file, file_scope);
 		latency[i] = bench_clock() - start;
 	}
 	for (unsigned i = 0; i < 128; i++)
@@ -89,7 +97,7 @@ int storage_main(size_t argc, char *const *argv)
 {
 	if (argc != 4 && argc != 5) {
 		qual_text(
-			"usage: storage-qual {write|overwrite|check|sync4k|prepare|durable|recover|stress} PATH RUN_ID [ACK_MIB]\n");
+			"usage: storage-qual {write[-file|-volume]|overwrite[-file|-volume]|sync4k[-file|-volume]|check|prepare|durable|recover|stress} PATH RUN_ID [ACK_MIB]\n");
 		return 2;
 	}
 	const char *mode = argv[1];
@@ -97,9 +105,15 @@ int storage_main(size_t argc, char *const *argv)
 		bench_fail("payload basename must be storage-qual.bin", 0);
 	int recover = equal(mode, "recover");
 	int stress = equal(mode, "stress");
-	int create = equal(mode, "write") || equal(mode, "prepare") || stress;
+	int write = equal(mode, "write") || equal(mode, "write-volume") || equal(mode, "write-file");
+	int overwrite = equal(mode, "overwrite") || equal(mode, "overwrite-volume") ||
+			equal(mode, "overwrite-file");
+	int sync4k = equal(mode, "sync4k") || equal(mode, "sync4k-volume") || equal(mode, "sync4k-file");
+	int file_scope = equal(mode, "write-file") || equal(mode, "overwrite-file") ||
+			 equal(mode, "sync4k-file");
+	int create = write || equal(mode, "prepare") || stress;
 	int readonly = equal(mode, "check") || recover;
-	if ((!create && !readonly && !equal(mode, "overwrite") && !equal(mode, "sync4k") &&
+	if ((!create && !readonly && !overwrite && !sync4k &&
 	     !equal(mode, "durable")) ||
 	    (argc == 5) != recover)
 		bench_fail("invalid command", 0);
@@ -112,6 +126,9 @@ int storage_main(size_t argc, char *const *argv)
 	qual_text(",");
 	qual_text(mode);
 	qual_text("\n");
+	qual_record("FORMAT", run, 2);
+	qual_record("SYNC_SCOPE", run, readonly ? 0 : file_scope ? 1 : 2);
+	qual_record("REQUEST_BYTES", run, sync4k ? 4096 : sizeof(buffer));
 	qual_record("PAYLOAD_BYTES", run, QUAL_BYTES);
 	int open_mode = BENCH_READ_WRITE;
 	if (create)
@@ -119,7 +136,7 @@ int storage_main(size_t argc, char *const *argv)
 	else if (readonly)
 		open_mode = BENCH_READ_ONLY;
 	uint64_t file = bench_open(argv[2], open_mode);
-	if (equal(mode, "overwrite")) {
+	if (overwrite) {
 		/* Require an already allocated 1 GiB extent before measuring. */
 		bench_read(file, QUAL_BYTES - sizeof(buffer), buffer, sizeof(buffer));
 	}
@@ -127,19 +144,19 @@ int storage_main(size_t argc, char *const *argv)
 		qual_text(
 			"STORAGE,STRESS: continuous I/O on a fixed 1 GiB extent; no performance result\n");
 		for (;;) {
-			write_payload(file, run, 1);
+			write_payload(file, run, 1, 0);
 			if (run == UINT64_MAX)
 				bench_fail("run identity exhausted", 0);
 			run++;
 		}
-	} else if (create || equal(mode, "overwrite")) {
-		write_payload(file, run, equal(mode, "prepare") ? 0 : 1);
+	} else if (create || overwrite) {
+		write_payload(file, run, equal(mode, "prepare") ? 0 : 1, file_scope);
 		if (equal(mode, "prepare"))
 			qual_record("PREPARED", run, QUAL_BYTES);
 	} else if (equal(mode, "check")) {
 		verify(file, run, 1);
-	} else if (equal(mode, "sync4k")) {
-		sync_writes(file, run);
+	} else if (sync4k) {
+		sync_writes(file, run, file_scope);
 	} else if (recover) {
 		qual_recover(file, run, acknowledged);
 	} else {

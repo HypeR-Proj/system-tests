@@ -117,8 +117,19 @@ admitted RAM, CPU governor and background activity. HypeR does not currently
 export the same Pi thermal/throttling diagnostics as Linux.
 
 `write` includes file growth and allocation, with open/truncate outside timing.
-`overwrite` requires an existing full extent. Both use 128 KiB requests, then
-one full-volume synchronization. `TOTAL_NS` includes deterministic payload
+`overwrite` requires an existing full extent. The original `write`, `overwrite`
+and `sync4k` commands remain volume-sync modes; their explicit names are
+`write-volume`, `overwrite-volume` and `sync4k-volume`. `prepare`, `durable` and
+`stress` also retain whole-volume synchronization.
+
+Use `write-file`, `overwrite-file` and `sync4k-file` to measure per-file
+synchronization instead. HypeR uses Native file sync and Linux uses `fsync`.
+F2FS may fall back to a checkpoint for namespace or recovery-space dependencies;
+file scope does not guarantee that every sync uses roll-forward. FAT retains its
+stronger synchronous volume behavior. Do not compare file and volume modes.
+
+All write/overwrite modes use 128 KiB requests followed by one synchronization
+of the selected scope. `TOTAL_NS` includes deterministic payload
 generation, writes and synchronization; `SYNC_NS` separately reports the final
 sync. There is no console output or readback inside that interval. Every word
 depends on its offset, run ID and epoch, and all 1 GiB are checked afterward.
@@ -128,10 +139,27 @@ For a cold readback, reboot and run `check` with the last writer's run ID.
 `sync4k` performs 128 deterministic 4 KiB overwrites, synchronizing after each.
 It records all operation latencies after timing. It preserves the verified
 pattern; it is a latency test, not a changed-data durability proof. Application
-queue depth is one. The Linux adapter uses `syncfs` on the file's filesystem;
-HypeR's F2FS sync also commits the whole mounted volume. These are **volume-sync
-latencies**, not Linux per-file `fsync` latency or O_DIRECT/raw-device results.
-Other writes on Raspbian's root filesystem can therefore affect its results.
+queue depth is one. For `sync4k`/`sync4k-volume`, Linux uses `syncfs` and HypeR
+uses explicit `FILE_SYNC_VOLUME`; both commit the filesystem containing the
+file. Other writes on Raspbian's root filesystem can affect these volume-sync
+results. For `sync4k-file`, both adapters synchronize only the file contract.
+Neither mode is O_DIRECT or a raw-device measurement. The 128 samples are a
+quick qualification run, not a statistically stable estimate of rare tail
+latencies.
+
+For the F2FS file-sync path, run on each system with its corresponding path:
+
+```text
+/bin/storage-qual write-file /data/storage-qual.bin 201
+/bin/storage-qual overwrite-file /data/storage-qual.bin 202
+/bin/storage-qual sync4k-file /data/storage-qual.bin 202
+```
+
+Fresh logs include `FORMAT=2`, `SYNC_SCOPE` (`1` file, `2` volume, `0` read-only),
+and `REQUEST_BYTES` records. The preparation manifest identifies measurement
+format 2 alongside the exact source, compiler, commands and artifact hashes.
+The comparison parser checks scope, request size and payload before producing
+a ratio; it never infers sync scope from a binary name.
 
 Summarize externally captured logs on the development machine:
 
@@ -142,7 +170,12 @@ python3 -B tests/hardware/storage/results.py compare \
 
 The summary retains individual measurements, uses medians for repeated runs,
 and reports HypeR/Linux ratios only for modes present in both logs. Missing
-completion, verification or timing records are errors. Preserve metadata beside
+completion, verification, timing or format-2 scope records are errors. Legacy
+logs without scope records require `--legacy-hyper-scope file|volume` and/or
+`--legacy-linux-scope file|volume`, based on independently verified build
+behavior. In particular, older HypeR builds between file-sync introduction and
+this qualification update used file sync despite the helper's volume-sync name.
+Do not label those logs as volume scope from their command names. Preserve metadata beside
 the JSON; do not claim equivalence of cards or filesystems from the ratio.
 
 ## Alpine guest comparison

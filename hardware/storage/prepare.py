@@ -142,7 +142,8 @@ def main():
                                              'config.json', 'deployment.json', 'kernel.config', 'io.itb',
                                              'alpine.itb', 'alpine.ext4', 'alpine-storage-rootfs.tar')]
     manifest = {
-        'format': 'hyper.storage-qualification.v1', 'payload_bytes': 1024 ** 3,
+        'format': 'hyper.storage-qualification.v2', 'payload_bytes': 1024 ** 3,
+        'measurement_format': 2, 'sync_scopes': {'1': 'file', '2': 'volume'},
         'physical_retirement_probe': args.retirement_probe,
         'system_payload': (None if args.payload_only else
                            json.loads((out / 'disk.img.system.json').read_text())),

@@ -82,10 +82,13 @@ impl Volume for ScopedVolume {
             .map_err(|_| Error::Closed)
     }
     fn sync(&mut self) -> std::result::Result<(), Error> {
-        if self.writes != [2, 2] {
+        if self.writes != [4, 4] {
             return Err(Error::Corrupt);
         }
-        Ok(())
+        self.notice
+            .as_byte_channel()
+            .send(b"volume")
+            .map_err(|_| Error::Closed)
     }
     fn set_times(
         &mut self,
@@ -145,6 +148,19 @@ pub(super) fn run(startup: &Startup<'_>, root: &Directory) -> Result<()> {
     }
     a.sync_all().map_err(show)?;
     receive(&worker.notice, b"a")?;
+    // A volume fence through B must also drain newly dirty pages belonging to A.
+    for (file, value) in [(&mut a, 1), (&mut b, 2)] {
+        for offset in [0, 8192] {
+            file.seek(SeekFrom::Start(offset)).map_err(show)?;
+            file.write_all(&[value; 4096]).map_err(show)?;
+        }
+    }
+    let volume = root
+        .open("/fs-sync-scope/b", FileRights::WRITE)
+        .map_err(show)?;
+    volume.sync(hyper_os::fs::SyncScope::Volume).map_err(show)?;
+    receive(&worker.notice, b"volume")?;
+    drop(volume);
     drop((a, b));
     worker.stop()?;
     println!("FS-FAILURE: sync-scope PASS");
