@@ -59,6 +59,8 @@ if __name__ == '__main__':
     # Terminate QEMU with the filesystem mounted after sync was acknowledged.
     boot(args, 'write', clean=False, label='checkpoint-write')
     boot(args, 'verify', label='checkpoint-verify')
+    boot(args, 'fsync-write', clean=False)
+    boot(args, 'fsync-verify')
     boot(args, 'writeback')
 
     boot(args, 'stream-write')
