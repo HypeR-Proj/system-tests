@@ -107,8 +107,9 @@ void bench_sync(uint64_t file)
 
 void bench_sync_volume(uint64_t file)
 {
-	/* Native file-sync commits the mounted volume for FAT and F2FS. */
-	bench_sync(file);
+	int64_t status = __hyper_std_fs_sync(file, HYPER_NATIVE_FILE_SYNC_VOLUME);
+	if (status)
+		bench_fail("volume sync", status);
 }
 
 void bench_pause(uint64_t nanoseconds)

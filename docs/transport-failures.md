@@ -54,6 +54,14 @@ VFS path. The format-owned FAT tests separately inject allocation, buffering and
 completion failures. Accepted bytes and durable bytes are different contracts;
 a failure cannot be interpreted as proof that nothing was written.
 
+[Writeback-pressure acceptance](../app/fs-failure/src/writeback_pressure.rs)
+writes a pre-sized 7 MiB file against a worker with a one-hour periodic deadline.
+It waits for a backend write before any explicit synchronization, checks bounded
+512 KiB batches and coherent reads during partial drain, then verifies that an
+explicit volume fence submits every accepted page. The fake backend retains a
+page bitmap rather than a second full-file cache. This is a correctness test,
+not a storage throughput or latency measurement.
+
 The kernel's
 [resource lifetime tests](https://github.com/HypeR-Proj/kernel/blob/main/tests/kernel/resource_lifetime.rs)
 use independent resource domains and tiny DMA limits. A retained alias keeps its

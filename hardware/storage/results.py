@@ -58,7 +58,7 @@ def oracle(path, run):
             'note': 'Use only with an independently confirmed physical power cut and cold recovery.'}
 
 
-def measurements(path):
+def measurements(path, legacy_scope=None):
     runs = []
     current = None
     for kind, run, value in records(path):
@@ -78,12 +78,37 @@ def measurements(path):
     result = []
     for run in runs:
         values = run['values']
-        mode = run['mode']
+        command = run['mode']
+        mode = command.removesuffix('-file').removesuffix('-volume')
         if mode not in ('write', 'overwrite', 'sync4k'):
             continue
+        if command not in (mode, mode + '-file', mode + '-volume'):
+            raise ValueError('invalid measurement command')
+        version = values.get('FORMAT', [1])
+        if version not in ([1], [2]):
+            raise ValueError('unsupported or duplicate measurement format')
+        if version == [2]:
+            scope = values.get('SYNC_SCOPE')
+            expected = 1 if command.endswith('-file') else 2
+            if scope != [expected]:
+                raise ValueError('missing or inconsistent synchronization scope')
+            scope = 'file' if expected == 1 else 'volume'
+            request_bytes = values.get('REQUEST_BYTES')
+            expected_bytes = 4096 if mode == 'sync4k' else 128 * 1024
+            if request_bytes != [expected_bytes]:
+                raise ValueError('missing or inconsistent request size')
+        else:
+            if command != mode or any(key in values for key in ('SYNC_SCOPE', 'REQUEST_BYTES')):
+                raise ValueError('scope metadata requires measurement format 2')
+            scope = legacy_scope or 'unknown-legacy'
+            expected_bytes = 4096 if mode == 'sync4k' else 128 * 1024
         if values.get('PAYLOAD_BYTES') != [PAYLOAD] or values.get('VERIFIED') != [PAYLOAD]:
             raise ValueError('missing full 1 GiB verification')
-        row = {'run_id': run['run'], 'mode': mode, 'payload_bytes': PAYLOAD}
+        if values.get('END') != [0]:
+            raise ValueError('measurement did not complete successfully')
+        row = {'run_id': run['run'], 'mode': mode, 'command': command,
+               'format': version[0], 'sync_scope': scope, 'request_bytes': expected_bytes,
+               'payload_bytes': PAYLOAD}
         if mode == 'sync4k':
             latency = sorted(values.get('SYNC4K_NS', []))
             if len(latency) != 128 or min(latency) <= 0:
@@ -105,6 +130,31 @@ def measurements(path):
     return result
 
 
+def comparisons(systems):
+    """Compare only explicitly matching workload/scope groups, never infer legacy scope."""
+    if any(row['sync_scope'] == 'unknown-legacy' for rows in systems.values() for row in rows):
+        raise ValueError('legacy log has unknown sync scope; specify its independently verified scope')
+    medians = {}
+    for mode in ('write', 'overwrite', 'sync4k'):
+        metric = 'iops' if mode == 'sync4k' else 'mib_per_second'
+        groups = {name: {(row['sync_scope'], row['request_bytes'], row['payload_bytes'])
+                         for row in rows if row['mode'] == mode}
+                  for name, rows in systems.items()}
+        if not all(groups.values()):
+            continue
+        if len({frozenset(group) for group in groups.values()}) != 1:
+            raise ValueError(f'{mode}: incompatible synchronization scopes or workloads')
+        for scope, request_bytes, payload in sorted(next(iter(groups.values()))):
+            values = {name: [row[metric] for row in rows if row['mode'] == mode
+                            and row['sync_scope'] == scope and row['request_bytes'] == request_bytes
+                            and row['payload_bytes'] == payload]
+                      for name, rows in systems.items()}
+            key = f'{mode}-{scope}'
+            medians[key] = {name: statistics.median(samples) for name, samples in values.items()}
+            medians[key]['hyper_over_linux'] = medians[key]['hyper'] / medians[key]['linux']
+    return medians
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -114,21 +164,17 @@ def main():
     compare = sub.add_parser('compare')
     compare.add_argument('--hyper', type=Path, required=True)
     compare.add_argument('--linux', type=Path, required=True)
+    compare.add_argument('--legacy-hyper-scope', choices=('file', 'volume'))
+    compare.add_argument('--legacy-linux-scope', choices=('file', 'volume'))
     args = parser.parse_args()
     try:
         if args.command == 'oracle':
             result = oracle(args.log, args.run_id)
         else:
-            systems = {'hyper': measurements(args.hyper), 'linux': measurements(args.linux)}
-            medians = {}
-            for mode in ('write', 'overwrite', 'sync4k'):
-                metric = 'iops' if mode == 'sync4k' else 'mib_per_second'
-                values = {name: [row[metric] for row in rows if row['mode'] == mode]
-                          for name, rows in systems.items()}
-                if all(values.values()):
-                    medians[mode] = {name: statistics.median(samples) for name, samples in values.items()}
-                    medians[mode]['hyper_over_linux'] = medians[mode]['hyper'] / medians[mode]['linux']
-            result = {'measurements': systems, 'medians': medians,
+            systems = {'hyper': measurements(args.hyper, args.legacy_hyper_scope),
+                       'linux': measurements(args.linux, args.legacy_linux_scope)}
+            result = {'format': 'hyper.storage-comparison.v2', 'measurements': systems,
+                      'medians': comparisons(systems),
                       'limits': ['Different cards/filesystems are deployment comparisons, not isolated hypervisor overhead.',
                                  'Same-boot readback is not a power-loss proof.',
                                  'Record board, card, kernel, filesystem, mount, thermal and frequency metadata separately.']}
