@@ -237,7 +237,11 @@ def run(args):
         journal.message('/tests/timeout', 'COMPONENT_DEADLINE_OK')
         command('componentctl stop /tests/silent')
         state('/tests/silent', 'stopped', 1)
-        command('componentctl start /tests/retry')
+        # Start returns a full topology snapshot that this assertion does not
+        # use. Export only its exit status while intentional retry failures are
+        # writing concurrent console logs; state and journal checks below prove
+        # the generations, retry budget, and attribution independently.
+        command('componentctl start /tests/retry >/tmp/retry-start-receipt')
         state('/tests/retry', 'failed', 3)
         for generation in (1, 2, 3):
             records = journal.message('/tests/retry', 'SERVICE_FAILURE_ATTEMPT', generation=generation, stream='stderr')

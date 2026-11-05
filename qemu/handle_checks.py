@@ -6,6 +6,19 @@
 import re
 
 
+def stable_handle(first, second, kind):
+    """Select an unchanged handle/object pair across distinct tool lifetimes."""
+    pattern = (rb'\n(0x[0-9a-f]{16})\s+(0x[0-9a-f]{16})\s+'
+               + kind.encode() + rb'\s+(\S+)')
+    retained = set(re.findall(pattern, second))
+    for row in re.findall(pattern, first):
+        if row not in retained:
+            continue
+        if kind != 'byte-channel' or set(row[2].split(b'|')) == {b'read', b'wait', b'transfer'}:
+            return row
+    raise AssertionError(f'missing stable shell {kind}: {first!r}; {second!r}')
+
+
 def verify_handles(run):
     run('handle --help', rb'--list-kinds')
     kinds = run('handle --list-kinds', rb'guest-mapping')
@@ -72,15 +85,13 @@ def verify_handles(run):
     for kind, expected in [('vmar', rb'permissions: [r-][w-][x-]; maximum:'),
                            ('byte-channel', rb'peer-holder: process 0x[0-9a-f]{16} "terminal-service"; handle 0x[0-9a-f]{16}')]:
         rows = run(f'handle shell --kind {kind} --no-headers')
-        # The shell retains the terminal event reader with exactly
-        # READ|WAIT|TRANSFER. This excludes duplex stream sessions and a
-        # transient READ|WAIT launch receipt. Detail authority belongs to the
-        # delegated inspector; the event reader itself needs no INSPECT right.
-        candidates = re.findall(rb'\n(0x[0-9a-f]{16})\s+(0x[0-9a-f]{16})\s+' + kind.encode() + rb'\s+(\S+)', rows)
-        match = next((row for row in candidates if kind != 'byte-channel' or
-                      set(row[2].split(b'|')) == {b'read', b'wait', b'transfer'}), None)
-        if not match:
-            raise AssertionError(f'missing shell {kind}: {rows!r}')
+        # A foreground job's event reader has the same READ|WAIT|TRANSFER
+        # rights as the shell's retained terminal reader, but disappears when
+        # this inspection command exits. Compare handle and object identities
+        # across two commands instead of relying on rights or scan order.
+        # Detail authority still belongs to the delegated inspector.
+        later = run(f'handle shell --kind {kind} --no-headers')
+        match = stable_handle(rows, later, kind)
         run(f'handle shell --handle {match[0].decode()}', expected)
         run(f'handle --object {match[1].decode()}', expected)
     granted = run('handle shell --kind object-inspector --no-headers')
