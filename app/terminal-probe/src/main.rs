@@ -11,6 +11,7 @@ use hyper_terminal::{ReadPolicy, Settings, Terminal};
 mod backpressure;
 mod formatting;
 mod lease_tree;
+mod termination;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -32,6 +33,11 @@ fn run() -> Result<()> {
         }
     }
     let mut startup = hyper_rt::process::startup()?;
+    if let Some(mode) = std::env::args().nth(1)
+        && mode.starts_with("terminate-")
+    {
+        return termination::run(&mut startup, &mode);
+    }
     let mut terminal = Terminal::take(&mut startup)?
         .ok_or_else(|| io::Error::other("terminal control was not delegated"))?;
     match std::env::args().nth(1).as_deref() {
@@ -146,7 +152,7 @@ fn run() -> Result<()> {
         }
         _ => {
             return Err(io::Error::other(
-                "usage: terminal-probe raw|canonical|formatting|timing|metadata|flow|raw-exit|control-drop|backpressure|lease-tree",
+                "usage: terminal-probe raw|canonical|formatting|timing|metadata|flow|raw-exit|control-drop|backpressure|lease-tree|terminate-notify|terminate-ignore|terminate-default",
             )
             .into());
         }

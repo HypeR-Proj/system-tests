@@ -78,6 +78,11 @@ def prepare(args):
         value['use'] = [{'name': 'echo', 'kind': protocol}]
         realm['offer'].append({'name': 'echo', 'to': name, 'from': '#' + provider, 'source': 'echo', 'kind': protocol})
         write(value)
+    value = component('stop-notify', 'stop-notify', timeout_ms=5000)
+    value['use'] = [{'name': 'echo', 'kind': protocol}]
+    realm['offer'].append({'name': 'echo', 'to': 'stop-notify', 'from': '#server', 'source': 'echo', 'kind': protocol})
+    write(value)
+    write(component('stop-ignore', 'stop-ignore', timeout_ms=3000))
     write(component('retry', 'fail', restart='on-failure', restart_delay_ms=100, restart_limit=2))
     for prepared in (False, True):
         for resident in (False, True):
@@ -208,6 +213,21 @@ def run(args):
         state('/tests/server', 'running', 2)
         command('componentctl start /tests/client')
         state('/tests/client', 'completed', 3)
+        command('componentctl start /tests/stop-notify')
+        journal.message('/tests/stop-notify', 'COMPONENT_NOTIFY_READY')
+        command('componentctl stop /tests/stop-notify')
+        notified = state('/tests/stop-notify', 'stopped', 1)
+        journal.message('/tests/stop-notify', 'COMPONENT_NOTIFY_CLEANUP_OK')
+        if b'ProcessExited { status: 0 }' not in notified:
+            raise AssertionError(f'Notify cleanup did not exit normally: {notified!r}')
+        command('componentctl start /tests/stop-ignore')
+        journal.message('/tests/stop-ignore', 'COMPONENT_IGNORE_READY')
+        before = time.monotonic()
+        command('componentctl stop /tests/stop-ignore')
+        ignored = state('/tests/stop-ignore', 'stopped', 1)
+        if time.monotonic() - before < 2.5:
+            raise AssertionError(f'Ignore was forced before its grace deadline: {ignored!r}')
+        journal.message('/component-manager', '/tests/stop-ignore generation=1 graceful stop deadline exceeded; terminating')
         stopping = command('componentctl stop /tests/server')
         if not re.search(rb'/tests/server\s+stopping\s+2\s', stopping):
             raise AssertionError(f'stop receipt lost its committed state: {stopping!r}')
@@ -217,7 +237,11 @@ def run(args):
         journal.message('/tests/timeout', 'COMPONENT_DEADLINE_OK')
         command('componentctl stop /tests/silent')
         state('/tests/silent', 'stopped', 1)
-        command('componentctl start /tests/retry')
+        # Start returns a full topology snapshot that this assertion does not
+        # use. Export only its exit status while intentional retry failures are
+        # writing concurrent console logs; state and journal checks below prove
+        # the generations, retry budget, and attribution independently.
+        command('componentctl start /tests/retry >/tmp/retry-start-receipt')
         state('/tests/retry', 'failed', 3)
         for generation in (1, 2, 3):
             records = journal.message('/tests/retry', 'SERVICE_FAILURE_ATTEMPT', generation=generation, stream='stderr')

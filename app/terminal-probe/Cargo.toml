@@ -24,6 +24,9 @@ features = ["std"]
 [dependencies.hyper-terminal]
 path = "../../../lib/terminal"
 
+[dependencies.hyper-service]
+path = "../../../lib/service"
+
 [lints]
 
 [lints.clippy]

@@ -11,6 +11,119 @@ from hyper_test.session import Session, native_command
 from hyper_test.command import Shell
 
 
+def verify_termination(session):
+    """Control delivery is independent of stdin, pipeline position and handlers."""
+    def markers(*expected):
+        remaining = set(expected)
+        while remaining:
+            expression = rb'(?:^|\n)(?:' + b'|'.join(re.escape(item) for item in remaining) + rb')\n'
+            output = session.await_text(expression, timeout=30)
+            remaining.difference_update(output.splitlines())
+
+    def status(expected, pipeline=None):
+        session.send(b'echo TERMINATE_STATUS=$? PIPE=${PIPESTATUS[@]}\r')
+        pattern = rb'\nTERMINATE_STATUS=' + str(expected).encode() + rb' PIPE='
+        pattern += re.escape(pipeline) if pipeline is not None else rb'[^\n]*'
+        session.await_text(pattern + rb'\nhyper-sh\$ ', timeout=10)
+
+    session.send(b'terminal-probe terminate-default; echo TERMINATE_BAD_CONTINUE\r')
+    markers(b'TERMINATE_DEFAULT_READY:single')
+    session.send(b'\x03')
+    output = session.await_text(rb'hyper-sh\$ ', timeout=10)
+    if re.search(rb'(?:^|\n)TERMINATE_BAD_CONTINUE\n', output):
+        raise AssertionError('default termination did not abort the command list')
+    status(130)
+
+    # Cancellation completes the outstanding terminal read. Its local error
+    # must become shell interruption, rather than an unrelated exit status 1.
+    session.send(b'sh -c \'read -p "TERMINATE_READ_READY: " value; '
+                 b'echo TERMINATE_BAD_READ_CONTINUE\'; '
+                 b'echo TERMINATE_BAD_READ_PARENT_CONTINUE\r')
+    session.await_text(rb'\nTERMINATE_READ_READY: ', timeout=10)
+    session.send(b'\x03')
+    output = session.await_text(rb'hyper-sh\$ ', timeout=10)
+    if re.search(rb'(?:^|\n)TERMINATE_BAD_READ_(?:PARENT_)?CONTINUE\n', output):
+        raise AssertionError('cancelled nested read continued executing commands')
+    if b'operation cancelled' in output:
+        raise AssertionError('requested cancellation leaked an execution error')
+    status(130)
+
+    session.send(b'terminal-probe terminate-notify; echo TERMINATE_NOTIFY_NEXT=$?\r')
+    markers(b'TERMINATE_NOTIFY_READY:single')
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:single', b'TERMINATE_NOTIFY_NEXT=0')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+    status(0)
+
+    session.send(b'terminal-probe terminate-notify nonzero 7; '
+                 b'echo TERMINATE_NONZERO_NEXT=$?\r')
+    markers(b'TERMINATE_NOTIFY_READY:nonzero')
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:nonzero', b'TERMINATE_NONZERO_NEXT=7')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+
+    session.send(b'terminal-probe terminate-ignore; echo TERMINATE_IGNORE_NEXT=$?\r')
+    markers(b'TERMINATE_IGNORE_READY:single')
+    session.send(b'\x03')
+    markers(b'TERMINATE_SURVIVED:single', b'TERMINATE_IGNORE_NEXT=0')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+    status(0)
+
+    # Both members must be notified; only the final stage has terminal control.
+    session.send(b'terminal-probe terminate-notify left | '
+                 b'terminal-probe terminate-notify right\r')
+    markers(b'TERMINATE_NOTIFY_READY:left', b'TERMINATE_NOTIFY_READY:right')
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:left', b'TERMINATE_CLEANUP:right')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+    status(0, b'0 0')
+
+    # A grandchild registers in the inherited job. Its intermediate supervisors
+    # must process their own requests while allowing descendant cleanup to finish.
+    session.send(b'sh -c \'sh -c "terminal-probe terminate-notify descendant"\'; '
+                 b'echo TERMINATE_BAD_NESTED_CONTINUE\r')
+    markers(b'TERMINATE_NOTIFY_READY:descendant')
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:descendant')
+    output = session.await_text(rb'hyper-sh\$ ', timeout=10)
+    if re.search(rb'(?:^|\n)TERMINATE_BAD_NESTED_CONTINUE\n', output):
+        raise AssertionError('nested shell interruption did not abort the command list')
+    status(130)
+
+    # Final-consumer exit must not revoke an upstream member's job lease.
+    session.send(b'terminal-probe terminate-notify upstream | '
+                 b'/bin/echo TERMINATE_CONSUMER_EXIT\r')
+    markers(b'TERMINATE_NOTIFY_READY:upstream', b'TERMINATE_CONSUMER_EXIT')
+    session.pump(0.1)
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:upstream')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+    status(0, b'0 0')
+
+    # A dead presentation owner must not leave the surviving job in raw mode,
+    # which would otherwise consume Ctrl+C as stdin instead of generating it.
+    session.send(b'terminal-probe terminate-notify recovered | '
+                 b'terminal-probe raw-exit\r')
+    markers(b'TERMINATE_NOTIFY_READY:recovered', b'TERMINAL_RAW_EXIT')
+    session.pump(0.1)
+    session.send(b'\x03')
+    markers(b'TERMINATE_CLEANUP:recovered')
+    session.await_text(rb'hyper-sh\$ ', timeout=10)
+    status(0, b'0 0')
+
+    # Pending requests belong to the old lease, including coalesced bursts.
+    for tag in (b'old', b'fresh'):
+        session.send(b'terminal-probe terminate-notify ' + tag + b'\r')
+        markers(b'TERMINATE_NOTIFY_READY:' + tag)
+        session.pump(0.1)
+        if b'TERMINATE_CLEANUP:' + tag in session.pending:
+            raise AssertionError('an old foreground request reached the next job')
+        session.send(b'\x03' * 8 if tag == b'old' else b'\x03')
+        markers(b'TERMINATE_CLEANUP:' + tag)
+        session.await_text(rb'hyper-sh\$ ', timeout=10)
+        status(0)
+
+
 def main():
     qemu, image, initramfs, logfile = sys.argv[1:]
     with Session(native_command(qemu, image, initramfs), logfile,
@@ -28,6 +141,7 @@ def main():
         run("set --; argc() { echo ARGC=$#; }; argc \"$@\"; argc ''\"$@\"",
             rb'\nARGC=0\nARGC=1\n')
         run('false; echo STATUS=$?', rb'\nSTATUS=1\n')
+        run("sh -c 'exit 130'; echo STATUS=$?", rb'\nSTATUS=130\n')
         run('absent-shell-command; echo STATUS=$?', rb'\nSTATUS=127\n')
         run('if false; then echo BAD; elif true; then echo IF_OK; fi', rb'\nIF_OK\n')
         run('i=0; while [ $i -lt 3 ]; do i=$((i+1)); done; echo LOOP=$i', rb'\nLOOP=3\n')
@@ -91,6 +205,8 @@ def main():
         run('printf abc > /tmp/glob-alpha; printf def > /tmp/glob-beta; echo /tmp/glob-*',
             rb'\n/tmp/glob-alpha /tmp/glob-beta\n')
 
+        verify_termination(session)
+
         # From here the input line/history/terminal itself is under test. A
         # capture wrapper would change the history being asserted and hide UI.
         def run(command, expected=None, timeout=30):
@@ -141,6 +257,19 @@ def main():
         if b'\nMUST_NOT_RUN\n' in cancelled:
             raise AssertionError('cancelled command executed')
         run('echo CANCEL=$?', rb'\nCANCEL=130\n')
+        # The terminal consumes the cutoff independently of pending stdin.
+        # Post-cutoff typeahead must survive even if its READ reply and the
+        # cancellation event become ready on separate channels together.
+        session.send(b'echo BATCH_CANCELLED\x03echo BATCH_SUFFIX\r')
+        cancelled = session.await_text(rb'\nBATCH_SUFFIX\nhyper-sh\$ ')
+        if b'\nBATCH_CANCELLED\n' in cancelled:
+            raise AssertionError('batched cancelled command executed')
+        for attempt in range(8):
+            # No prefix can satisfy the already-pending READ. Both the control
+            # event and a suffix reply may become ready in one reactor pass.
+            marker = f'BARE_SUFFIX_{attempt}'.encode()
+            session.send(b'\x03echo ' + marker + b'\r')
+            session.await_text(rb'\n' + marker + rb'\nhyper-sh\$ ')
         run("echo 'echo STDIN_SCRIPT' | sh", rb'\nSTDIN_SCRIPT\n')
         run("cat <<'END' >/tmp/shell-order\nfor n in 1 2 3 4; do\nsh -c 'printf ERROR_ >&2; printf \"TAIL\\n\" >&2; echo OUTPUT'\ndone\nEND\nprintf '' | sh /tmp/shell-order",
             rb'\n(?:ERROR_TAIL\nOUTPUT\n){4}')
