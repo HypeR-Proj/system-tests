@@ -5,6 +5,8 @@
 
 # Mirror only short diagnostic lines; the trace body goes directly to its file.
 # pipefail preserves a workload/perf failure when the logger itself succeeds.
+# HypeR Native sh supports pipefail; this script does not target POSIX-only sh.
+# shellcheck disable=SC3040
 set -o pipefail
 log_output() {
     while IFS= read -r line; do
