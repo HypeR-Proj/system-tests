@@ -25,6 +25,7 @@ use std::{
 
 mod directory;
 mod directory_volume;
+mod failed_detach;
 mod partial_write;
 mod sync_scope;
 mod volume;
@@ -77,11 +78,18 @@ struct Worker {
     notice: OwnedHandle<ByteChannelObject>,
     control: CapabilityChannel,
     transport: Option<(OwnedHandle<ByteChannelObject>, OwnedHandle<VmoObject>)>,
+    mount_id: u64,
 }
 
 impl Worker {
     fn launch(startup: &Startup<'_>, root: &Directory, path: &str) -> Result<Self> {
-        root.create_directory(path, 0o755).map_err(show)?;
+        match root.open_directory(path, DirectoryRights::READ) {
+            Ok(directory) => drop(directory),
+            Err(hyper_os::Error::Status(hyper_os::Status::NOT_FOUND)) => {
+                root.create_directory(path, 0o755).map_err(show)?
+            }
+            Err(error) => return Err(show(error)),
+        }
         let image = root
             .open("/init", hyper_service::process::EXECUTABLE_FILE_RIGHTS)
             .map_err(show)?;
@@ -146,6 +154,7 @@ impl Worker {
             notice,
             control,
             transport: None,
+            mount_id: 0,
         };
         let mut bytes = [MaybeUninit::uninit(); 16];
         let mut slots = [
@@ -171,7 +180,7 @@ impl Worker {
             .take::<VmoObject>()
             .map_err(show)?
             .ok_or("missing worker buffer")?;
-        hyper_os::filesystem::mount(
+        worker.mount_id = hyper_os::filesystem::mount(
             channel.as_handle_ref(),
             buffer.as_handle_ref(),
             None,
@@ -244,6 +253,7 @@ fn disconnected(file: &mut File, path: &str) -> Result<()> {
 
 fn suite(startup: &mut Startup<'_>) -> Result<()> {
     let root = startup.take_root_directory().map_err(show)?;
+    failed_detach::run(startup, &root)?;
     delayed_reply(startup, &root)?;
     for (name, owner_loss) in [("/fs-worker-stop", false), ("/fs-owner-loss", true)] {
         let mut worker = Worker::launch(startup, &root, name)?;
@@ -822,7 +832,10 @@ fn run() -> Result<bool> {
             let _completion = hyper_fs_service::serve_buffered(&mut startup, &mut volume)?;
             return Ok(false);
         }
-        if std::env::args().nth(2).as_deref() == Some("/fs-sync-scope") {
+        if matches!(
+            std::env::args().nth(2).as_deref(),
+            Some("/fs-sync-scope" | "/fs-failed-dirty")
+        ) {
             let mut volume = sync_scope::ScopedVolume {
                 notice,
                 writes: [0; 2],

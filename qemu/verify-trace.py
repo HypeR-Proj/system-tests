@@ -32,6 +32,22 @@ def main():
         shell = Shell(session)
         if b'running=false' not in shell.check('perf trace status'):
             raise AssertionError('tracing enabled at boot')
+        shell.check('vdso-dynamic idle')
+        shell.check('perf trace start --duration-ms 60000 --categories ipc')
+        shell.check('vdso-static active')
+        shell.check('vdso-dynamic active')
+        shell.check('perf trace stop')
+        shell.check('vdso-dynamic idle')
+        shell.check('perf trace clear')
+        shell.check('vdso-static idle')
+        shell.check('perf trace start --duration-ms 100 --categories ipc')
+        expiry = time.monotonic() + 20
+        while b'running=false' not in shell.check('perf trace status'):
+            if time.monotonic() >= expiry:
+                raise AssertionError('IPC capture did not expire')
+            session.pump(0.1)
+        shell.check('vdso-dynamic idle')
+        shell.check('perf trace clear')
         shell.check('cp /bin/perf /tmp/unprivileged-perf')
         shell.run('/tmp/unprivileged-perf trace status').require('unprivileged trace', failed=True)
         shell.run('perf trace start --cpus 255').require('offline CPU', failed=True)
@@ -52,6 +68,7 @@ def main():
             raise AssertionError('clear retained capture metadata')
         shell.run('perf trace dump -o /tmp/cleared.pftrace').require('cleared capture', failed=True)
         shell.check('perf trace start --duration-ms 60000 --categories scheduler')
+        shell.check('vdso-dynamic idle')
         session.pump(1.2)
         if b'running=true' not in shell.check('perf trace status'):
             raise AssertionError('cancelled deadline stopped the replacement capture')
@@ -68,6 +85,7 @@ def main():
             if time.monotonic() > deadline:
                 raise AssertionError('trace did not stop autonomously')
             session.pump(0.1)
+        shell.check('vdso-static idle')
         shell.check('perf trace dump --raw-events --format jsonl --no-names -o /tmp/frozen.jsonl')
         shell.run('perf trace dump --raw-events --format chrome --generation 0 -o /tmp/stale.json').require('stale generation', failed=True)
         shell.run('perf trace dump --raw-events --format chrome --fail-on-loss -o /tmp/loss.json').require('loss policy', failed=True)

@@ -20,6 +20,7 @@ def main():
                 b'kernel panic', b'HypeR crash monitor', b'panicked at')
     with Session(native_command(args.qemu, args.image, args.initramfs),
                  args.log, failures=failures) as session:
+        session.await_text(rb'FS-FAILURE: failed-detach PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: delayed-reply PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: /fs-worker-stop PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: /fs-owner-loss PASS\n')
