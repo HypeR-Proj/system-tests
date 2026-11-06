@@ -70,6 +70,28 @@ def inspect(data):
                 if one(d, 1) == 1 and one(d, 14)]
     if len(metadata) != 1:
         raise ValueError('missing capture identity')
+    completion = metadata[0].get('export_completion')
+    if completion is not None:
+        if completion != 'hyper-export-v1':
+            raise ValueError('unsupported export completion contract')
+        receipts = [(packet, fields(one(packet, 11))) for packet in packets
+                    if one(packet, 11) is not None
+                    and one(fields(one(packet, 11)), 23) == b'HypeR export complete']
+        if len(receipts) != 1 or receipts[0][0] is not packets[-1]:
+            raise ValueError('incomplete trace export: missing final receipt')
+        receipt = receipts[0][1]
+        counts = {}
+        for value in receipt.get(4, []):
+            argument = fields(value)
+            name = one(argument, 10)
+            if name in counts:
+                raise ValueError('duplicate export receipt count')
+            counts[name] = one(argument, 3)
+        if (one(receipt, 9) != 3 or one(receipt, 11) != 1
+                or counts.get(b'payload_packets') != len(packets) - 1
+                or counts.get(b'source_events') != metadata[0].get('collected_events')
+                or not isinstance(counts.get(b'source_events'), int)):
+            raise ValueError('incomplete trace export: receipt counts do not match')
     threads = [fields(t) for _, tree in trees for t in tree.get(2, [])]
     tids = {one(t, 1) for t in threads}
     for identity, observation in metadata[0].get('thread_objects', {}).items():
@@ -91,4 +113,5 @@ def inspect(data):
     if any(one(s, 3) not in tids or one(s, 4) not in range(2, 9) for _, s in states):
         raise ValueError('invalid scheduler identity/state')
     return dict(packets=packets, states=states, threads=threads, trees=trees,
-                events=events, descriptors=descriptors, metadata=metadata[0])
+                events=events, descriptors=descriptors, metadata=metadata[0],
+                export_complete=True if completion is not None else None)

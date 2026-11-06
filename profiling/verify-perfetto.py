@@ -86,6 +86,7 @@ def verify_native(processor, trace, *, scheduling=False):
       (SELECT count(*) FROM sched) AS runs,
       (SELECT count(*) FROM sched WHERE dur < 0) AS open_runs,
       (SELECT count(*) FROM thread_state WHERE state = 'Running') AS running,
+      (SELECT count(*) FROM slice WHERE name = 'HypeR export complete') AS receipts,
       (SELECT count(*) FROM flow) AS flows,
       (SELECT count(*) FROM slice WHERE name = 'RPC round trip') AS rpc,
       (SELECT coalesce(sum(value),0) FROM stats
@@ -94,6 +95,7 @@ def verify_native(processor, trace, *, scheduling=False):
     row, diagnostics = query(processor, trace, statement)
     if (int(row['runs']) != expected_runs or int(row['open_runs'])
             or int(row['running']) != expected_runs or int(row['errors'])
+            or int(row['receipts']) != int(source['export_complete'] is True)
             or int(row['flows']) != len(starts) or int(row['rpc']) != expected_rpc):
         raise ValueError(f'Native Perfetto import mismatch: {row}; expected runs={expected_runs}, flows={len(starts)}, RPC={expected_rpc}\n{diagnostics}')
     rows, _ = query_rows(processor, trace, """

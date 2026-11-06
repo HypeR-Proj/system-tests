@@ -89,7 +89,8 @@ class TraceArtifactTests(unittest.TestCase):
 
 class PerfettoOwnershipTests(unittest.TestCase):
     @staticmethod
-    def artifact(pid=100, owner='vm-io'):
+    def artifact(pid=100, owner='vm-io', *, completion=False, receipt=True,
+                 payload_packets=2, after_receipt=False):
         # An independent minimal protobuf fixture exercises the identity schema,
         # including Perfetto's implicit process-leader TID namespace.
         def integer(value):
@@ -106,14 +107,34 @@ class PerfettoOwnershipTests(unittest.TestCase):
                 value = value.encode()
             return integer((number << 3) | 2) + integer(len(value)) + value
 
-        metadata = json.dumps({'vm_threads': {'0x123': {'name': 'io', 'vcpu': 0}},
-                               'exported_threads': {'0x123': 1}})
+        metadata = {'vm_threads': {'0x123': {'name': 'io', 'vcpu': 0}},
+                    'exported_threads': {'0x123': 1}}
+        if completion:
+            metadata.update(export_completion='hyper-export-v1', collected_events=0)
+        metadata = json.dumps(metadata)
         descriptor = field(1, 1) + field(14, metadata)
         process = field(1, pid) + field(3, owner)
         thread = field(1, 1) + field(2, pid) + field(3, 'vcpu/0') + field(5, 0)
         tree = field(1, process) + field(2, thread)
-        return (field(1, field(8, 0) + field(60, descriptor))
-                + field(1, field(8, 0) + field(122, tree)))
+        result = (field(1, field(8, 0) + field(60, descriptor))
+                  + field(1, field(8, 0) + field(122, tree)))
+        if completion and receipt:
+            event = (field(9, 3) + field(11, 1) + field(23, 'HypeR export complete')
+                     + field(4, field(10, 'payload_packets') + field(3, payload_packets))
+                     + field(4, field(10, 'source_events') + field(3, 0)))
+            result += field(1, field(8, 0) + field(11, event))
+        if after_receipt:
+            result += field(1, field(8, 0))
+        return result
+
+    def test_complete_export_is_distinct_from_parseable_prefix(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'profiling'))
+        from perfetto_proto import inspect
+        self.assertIsNone(inspect(self.artifact())['export_complete'])
+        self.assertTrue(inspect(self.artifact(completion=True))['export_complete'])
+        for options in ({'receipt': False}, {'payload_packets': 3}, {'after_receipt': True}):
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'incomplete trace export'):
+                inspect(self.artifact(completion=True, **options))
 
     def test_process_leader_cannot_steal_scheduler_thread(self):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'profiling'))

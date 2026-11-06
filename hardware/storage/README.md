@@ -64,6 +64,90 @@ the [network image preparation](../network/README.md#image-preparation).
 Do not flash a HypeR test image onto the Raspbian card. Preserve `build.json` and the
 full serial log for every run. Flashing and physical power control are manual.
 
+## Pi 5 trace image and removable-card export
+
+Build a separate, uncompressed trace image with one command from the workspace:
+
+```sh
+python3 tests/hardware/storage/prepare.py --trace \
+  --output "$PWD/out/manual/rpi5-storage-trace"
+```
+
+The source entry point enters the generated build view automatically. Use a new
+output directory for each image. `--config FILE` selects a saved kernel config;
+the script enables `CONFIG_FEATURE_KERNEL_TRACE` in its output copy without
+modifying that saved file. This is an instrumented diagnostic image, not the
+uninstrumented performance baseline. It still uses the published I/O VM package.
+
+`--trace` enlarges the existing firmware FAT partition to **512 MiB**; override
+with `--firmware-mib 1024` if needed (256..4096 MiB). It grants this partition to
+the Native filesystem service and adds a manual-only `/tmp/firmware` fstab
+entry. No additional partition is created. The F2FS data partition remains
+2 GiB. Use an SD card large enough for the whole generated image (8 GB or larger
+with the default layout). Existing firmware files are preserved in the image.
+
+After flashing and booting, leave other workloads and business VMs stopped:
+
+```text
+sh /bin/storage-trace.sh 301
+```
+
+The script prepares a 1 GiB `/data/storage-qual.bin`, then records the first
+three seconds of an overwrite using scheduler, IPC and I/O events. It waits
+for the complete write workload, even if the capture reports loss, so the command
+takes longer than three seconds. Capture uses `--snapshot` and 65536 records per
+CPU (14 MiB for four CPUs), reading only after stop to avoid live-reader ring
+contention. Raw events are retained alongside derived tracks. Longer intervals
+can still overflow these bounded rings; keep the loss report with the trace.
+The firmware FAT is mounted and the output file reserved before recording.
+Capture records and command logs stay in RAM. After recording stops and the
+workload finishes, perf streams the **original Perfetto protobuf** directly to
+`/traces/run-301/storage.pftrace.partial` on FAT, then the script copies the small
+logs. Only a successful capture/workload/export publishes `storage.pftrace`.
+This avoids retaining a second large RAMFS file and keeps export I/O outside
+both the capture and the measured workload. It unmounts FAT, clears a successful
+capture's kernel buffers, and unmounts `/data`. `TRACE FILES EXPORTED` confirms
+the FAT export is already unmounted even if the separate `/data` unmount fails.
+Wait for `EXPORT COMPLETE`, power off, then remove the card and copy that
+directory on the computer. Do not remove a powered card.
+
+The files are `storage.pftrace`, `capture.log` (including capture loss and workload
+status), and `prepare.log`. Open `storage.pftrace` directly in Perfetto; no trace
+conversion is needed. Failed or incomplete captures are exported for diagnosis,
+but return failure, retain the `.partial` filename and keep kernel buffers.
+That suffix means the run was not fully successful; the file may still contain
+a complete export of a lossy capture or failed workload. Include the logs with
+the trace.
+Copy/unmount failure retains RAM logs under `/tmp/storage-trace-301`; the trace
+may be partial on FAT if export failed. A successful export prints
+`perf trace: export complete` in capture.log. Native files also end with a
+`HypeR export complete` receipt; the validator checks packet/event counts and
+rejects packet-aligned truncation. Source loss metadata alone cannot establish
+that the file was fully exported. Do not power off before a successful
+FAT unmount. Existing run directories are never overwritten. The script does
+not modify firmware files.
+
+The script mirrors diagnostic lines to the console and RAM logs. It uses the
+Native shell's `pipefail` so successful logging cannot hide a failed workload
+or export. The trace body never travels through this console pipeline. The
+default three-second duration bounds observation only: the full 1 GiB write,
+sync and readback must finish before export. `perf trace: capture stopped`
+marks that transition; `exporting to`, per-4-MiB progress and the final byte/time
+report identify export work. FAT exports use 128 KiB userspace buffering while
+retaining the filesystem's synchronous policy.
+
+Use a new run ID for another capture, and remount data after a successful export:
+
+```text
+mount /data
+sh /bin/storage-trace.sh 302 5000
+```
+
+The optional second argument is the trace duration in milliseconds. The fixed
+262144-event collector bound may stop capture earlier; inspect `capture.log`
+before interpreting an incomplete interval. Keep captures short before raising
+memory limits. For ordinary throughput comparisons, use the non-trace image.
+
 ## First round: writes and synchronization
 
 Keep business VMs stopped and unrelated applications idle. Record the complete
