@@ -394,19 +394,19 @@ test-pmu: image native-initramfs
 # Every trace body leaves through the filesystem backend. The UART carries
 # command receipts only; each run owns its disk and extracts after QEMU exits.
 TRACE_LOG ?= $(APP_OUTPUT)/trace-$(QEMU_CPUS).log
-.PHONY: test-trace test-trace-remote
-test-trace test-trace-remote: export KERNEL_FEATURES = rtc runtime-symbols crash-console kernel-trace
-test-trace test-trace-remote: APP_EXTRA_BINS += hyper-perf hyper-test-report hyper-lifecycle-stress
-test-trace test-trace-remote: image app
+.PHONY: test-trace test-trace-remote test-trace-volume
+test-trace test-trace-remote test-trace-volume: export KERNEL_FEATURES = rtc runtime-symbols crash-console kernel-trace
+test-trace test-trace-remote test-trace-volume: APP_EXTRA_BINS += hyper-perf hyper-test-report hyper-lifecycle-stress
+test-trace test-trace-remote test-trace-volume: image app
 	@test "$(ARCH)" = aarch64 || { echo "disk-backed trace acceptance requires aarch64" >&2; exit 2; }
 	mkdir -p "$(BOARD_TEST_OUTPUT)" "$(dir $(TRACE_LOG))"
 	@fixture=$$(mktemp -d "$(BOARD_TEST_OUTPUT)/trace.XXXXXX") && \
-	python3 -B tests/qemu/trace_artifacts.py --board-output "$$fixture/board.json" && \
+	python3 -B tests/qemu/trace_artifacts.py --board-output "$$fixture/board.json" --data-mib $(if $(filter test-trace-volume,$@),128,64) && \
 	$(MAKE) -o image -o app board-image BOARD=qemu \
 		BOARD_CONFIG="$$fixture/board.json" BOARD_OUTPUT="$$fixture" \
 		BOARD_IMAGE="$$fixture/disk.img" \
 		BOARD_EXTRA_ENTRIES='0755 bin/perf "$(APP_OUTPUT)/perf" 0755 bin/test-report "$(APP_OUTPUT)/test-report" 0755 bin/lifecycle-stress "$(APP_OUTPUT)/lifecycle-stress"' && \
-	$(NATIVE_QEMU_ENV) python3 -B tests/qemu/$(if $(filter test-trace-remote,$@),verify-trace-remote.py,verify-trace.py) \
+	$(NATIVE_QEMU_ENV) python3 -B tests/qemu/$(if $(filter test-trace-remote,$@),verify-trace-remote.py,$(if $(filter test-trace-volume,$@),verify-trace-volume.py,verify-trace.py)) \
 		$(if $(filter test-trace-remote,$@),--qemu "$(QEMU)" --image "$(KERNEL_IMAGE)" --initramfs "$$fixture/bootstrap.cpio" --log "$(TRACE_LOG)","$(QEMU)" "$(KERNEL_IMAGE)" "$$fixture/bootstrap.cpio" "$(TRACE_LOG)") \
 		--disk "$$fixture/disk.img" --board "$$fixture/deployment.json"
 

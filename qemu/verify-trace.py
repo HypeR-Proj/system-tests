@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--board', type=Path, required=True)
     args = parser.parse_args()
     artifacts = TraceArtifacts(args.disk, args.board, args.logfile.with_suffix('.artifacts'))
-    names = ('frozen.jsonl', 'later.jsonl', 'trace.json', 'ipc.json', 'command.jsonl', 'remote.json', 'failed.json', 'expiry.json', 'lanes.pftrace', 'native.pftrace')
+    names = ('frozen.jsonl', 'later.jsonl', 'trace.json', 'ipc.json', 'command.jsonl', 'remote.json', 'failed.json', 'expiry.json', 'lanes.pftrace', 'native.pftrace', 'loss-child-0.pftrace', 'loss-child-7.pftrace')
     with Session(boot_command(args.qemu, args.image, args.initramfs, args.disk, args.board), args.logfile,
                  output_filter=append_console_output) as session:
         session.await_text(rb'HypeR: startup complete\n', timeout=240)
@@ -37,10 +37,16 @@ def main():
         shell.run('perf trace start --cpus 255').require('offline CPU', failed=True)
         shell.check('perf trace start --duration-ms 1000 --categories scheduler')
         shell.check('perf trace stop')
-        if b'retained=16384/CPU maximum=16384/CPU' not in shell.check('perf trace status'):
+        if b'retained=16384/CPU maximum=65536/CPU' not in shell.check('perf trace status'):
             raise AssertionError('default trace allocation did not grow to 16384 records')
         shell.run('perf trace clear --generation 0').require('stale clear generation', failed=True)
         shell.check('perf trace clear')
+        shell.check('perf trace start --duration-ms 1000 --buffer-records 65536 --categories scheduler')
+        shell.check('perf trace stop')
+        if b'retained=65536/CPU' not in shell.check('perf trace status'):
+            raise AssertionError('large snapshot allocation was not retained')
+        shell.check('perf trace clear')
+        shell.run('perf trace start --buffer-records 65537').require('kernel allocation bound', failed=True)
         cleared = shell.check('perf trace status')
         if b'generation=0 ' not in cleared or b'retained=0/CPU' not in cleared:
             raise AssertionError('clear retained capture metadata')
@@ -71,6 +77,17 @@ def main():
         shell.check('perf trace record --raw-events --format chrome --duration-ms 1000 --categories scheduler,syscall,ipc --max-events 128 -o /tmp/trace.json')
         shell.run('perf trace dump --raw-events --format chrome -o /tmp/trace.json').require('overwrite requires opt-in', failed=True)
         shell.check('perf trace clear')
+        # Force capture truncation while the child is still running. A quality
+        # failure must join it, preserve its side effect, and prefer its nonzero
+        # exit code over the generic capture-quality failure.
+        for exit_code in (0, 7):
+            marker = f'/tmp/trace-child-{exit_code}'
+            result = shell.run(f'perf trace record --snapshot --duration-ms 50 --categories scheduler --max-events 1 --fail-on-loss -o /tmp/loss-child-{exit_code}.pftrace -- /bin/lifecycle-stress trace-completion {marker} {exit_code} /tmp/loss-child-{exit_code}.pftrace', timeout=120)
+            if result.status != (exit_code or 1):
+                raise AssertionError(f'capture/workload status precedence: {result.status}')
+            if b'TRACE_CHILD_COMPLETED' not in shell.check(f'cat {marker}'):
+                raise AssertionError('capture quality failure terminated its workload')
+            shell.check('perf trace clear')
         # Bounded lossless workload: two hops, duplex queues, explicit parents,
         # real blocked waits, and repeated protocol IDs on distinct connections.
         # One bounded command excludes serial control traffic and keeps the
@@ -103,7 +120,7 @@ def main():
         # production rate; sparse scheduler observations keep the probe bounded.
         shell.check('perf trace record --raw-events --format chrome --snapshot --duration-ms 50 --categories scheduler --no-names --fail-on-loss -o /tmp/expiry.json')
         shell.check('perf trace clear')
-        shell.check('perf trace record --duration-ms 250 --categories scheduler --max-events 16384 -o /tmp/lanes.pftrace')
+        shell.check('perf trace record --snapshot --fail-on-loss --duration-ms 250 --categories scheduler --max-events 16384 -o /tmp/lanes.pftrace')
         shell.check('perf trace clear')
         native_result = shell.run('perf trace record --snapshot --duration-ms 30000 --categories ipc,scheduler --poll-ms 1 --fail-on-loss --max-events 16384 -o /tmp/native.pftrace -- /bin/lifecycle-stress trace', timeout=120)
         if native_result.status == 0:

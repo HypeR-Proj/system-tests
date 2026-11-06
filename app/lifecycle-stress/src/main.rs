@@ -419,7 +419,13 @@ fn worker(control: &OwnedHandle<ByteChannelObject>, action: impl FnOnce() -> Res
 fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("trace") && args.len() == 2 {
-        return trace::run();
+        return trace::run(4);
+    }
+    if args.get(1).map(String::as_str) == Some("trace-completion") && args.len() == 5 {
+        return trace::complete_after_capture(&args[2], args[3].parse()?, &args[4]);
+    }
+    if args.get(1).map(String::as_str) == Some("trace-volume") && args.len() == 2 {
+        return trace::run(4096);
     }
     if args.get(1).map(String::as_str) == Some("child") {
         return child(args.get(2).ok_or("missing child seed")?.parse()?);

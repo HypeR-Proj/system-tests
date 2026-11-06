@@ -36,6 +36,11 @@ def validate_remote(payload):
 
 
 def validate_capture(files, logfile):
+    for name in ('loss-child-0.pftrace', 'loss-child-7.pftrace'):
+        lost = inspect_proto(files[name].read_bytes())
+        if not lost['metadata']['limited'] or not lost['events']:
+            raise AssertionError('loss failure did not retain raw diagnostic events')
+
     lanes = inspect_proto(files['lanes.pftrace'].read_bytes())
     if not any(one(state, 4) == 3 for _, state in lanes['states']):
         raise AssertionError('default Perfetto view lacks native scheduling states')
