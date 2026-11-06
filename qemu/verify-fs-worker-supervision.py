@@ -6,7 +6,7 @@
 
 The disposable disk boots the normal component manager, fs-backend and EROFS
 root. Only the F2FS worker executable is replaced by a test provider: it retains
-the volume capability, never writes media, and exits/faults during a write RPC.
+a delegated queue, never writes media, and exits/faults during a write RPC.
 """
 
 import argparse
@@ -50,6 +50,8 @@ def run(args):
         journal = Journal(shell)
         # This also checks expected stop/restart does not poison component health.
         shell.check('ls /data')
+        shell.check('umount --force /data', failed=True)
+        shell.check('umount --force /', failed=True)
         shell.check('umount /data', timeout=60)
         shell.check('mount /data', timeout=60)
         healthy = shell.check('componentctl status /fs-backend')
@@ -64,11 +66,15 @@ def run(args):
         else:
             shell.check(f'echo fault >/data/{args.case}', failed=True, timeout=30)
         reason = 'ProcessExited { status: 37 }' if args.case == 'exit' else 'Fault {'
-        vm.observe(rb'HypeR component-manager: CRITICAL: /fs-backend generation=1 worker failure: .*'
+        vm.observe(rb'HypeR component-manager: CRITICAL: /fs-backend generation=1 critical subsystem failure: .*'
                    + re.escape(reason.encode()), 15)
         records = journal.message('/fs-backend', reason, stream='stderr')
         failures = [r for r in records if reason in r['text']]
-        if len(failures) != 1 or not all(s in failures[0]['text'] for s in ('fs-f2fs', '/data', '0x')):
+        stages = [re.search(r'\bstage=([^ ]+)', r['text']) for r in failures]
+        stages = [match.group(1) if match else None for match in stages]
+        if (stages.count('provider-death') != 1 or len(stages) != len(set(stages))
+                or not all(all(s in r['text'] for s in ('fs-f2fs', '/data', '0x'))
+                           for r in failures)):
             raise AssertionError(f'missing or repeated worker identity/reason: {failures!r}')
         until = time.monotonic() + 15
         while True:
@@ -82,13 +88,14 @@ def run(args):
             raise AssertionError(f'worker failure stopped its owner: {state!r}')
         if args.case == 'stop-fault':
             # The namespace transaction committed before shutdown failed. The
-            # lost media capability cannot be manufactured by mounting again.
+            # old queue remains fenced until explicit recovery proves retirement.
             shell.check('mount /data', failed=True)
             shell.check('ls /')
             shell.check('ls /bin')
             final = shell.check('componentctl status /fs-backend')
             if reason.encode() not in final:
                 raise AssertionError(f'owner release erased worker failure: {final!r}')
+            recover(shell, reason)
             print(f'Filesystem shutdown failure reporting passed: {args.log}')
             return
         mounts = shell.check('mount')
@@ -110,7 +117,23 @@ def run(args):
         final = shell.check('componentctl status /fs-backend')
         if reason.encode() not in final:
             raise AssertionError(f'failed retry erased terminal status: {final!r}')
+        recover(shell, reason)
     print(f'Filesystem worker {args.case} supervision and mount isolation passed: {args.log}')
+
+
+def recover(shell, reason):
+    retired = shell.check('umount --force /data', timeout=60)
+    if b'recovery=remount-allowed' not in retired:
+        raise AssertionError(f'failed generation was not safely retired: {retired!r}')
+    saved = shell.check('mount')
+    if b'CRITICAL:' not in saved or b'/data' not in saved or reason.encode() not in saved:
+        raise AssertionError(f'retirement erased the queryable fault: {saved!r}')
+    shell.check('mount /data', timeout=60)
+    if reason.encode() not in shell.check('mount'):
+        raise AssertionError('remount erased the original provider failure')
+    shell.check('ls /data')
+    shell.check('umount --force /data', failed=True)
+    shell.check('umount /data', timeout=60)
 
 
 def main():

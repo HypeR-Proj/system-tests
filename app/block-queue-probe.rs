@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 roolrz
 // SPDX-License-Identifier: Apache-2.0
 
-//! Opt-in probe executed by the exclusive FAT worker before mounting its volume.
+//! Opt-in probe executed by the volume owner before mounting its filesystem.
 //! Writes preserve existing sector bytes; normal filesystem acceptance tests
 //! subsequently exercise changed payloads and cold-restart durability.
 
@@ -184,6 +184,50 @@ fn readonly_window(block: &NativeBlock, root: HandleRef<'_, VmarObject>) -> Resu
     )
 }
 
+fn retirement(block: &NativeBlock) -> Result<(), String> {
+    let queue = block.create_queue(QueueConfig::default()).map_err(show)?;
+    let alias = BlockQueue::from_handle(
+        queue
+            .as_handle_ref()
+            .duplicate(queue_rights())
+            .map_err(show)?,
+    );
+    let _ticket = queue.submit_read(0, 512 * 1024).map_err(show)?;
+    // Retire without waiting or reaping. The owner must drain pending, physical
+    // and completed requests even while aliases remain in the failed worker.
+    block
+        .retire_queue(queue.as_handle_ref(), deadline()?)
+        .map_err(show)?;
+    require(
+        matches!(
+            alias.submit_read(0, 512),
+            Err(Error::Status(Status::PEER_CLOSED))
+        ),
+        "retired alias admitted I/O",
+    )?;
+    let info = queue.info().map_err(show)?;
+    require(
+        info.outstanding_requests == 0 && info.outstanding_bytes == 0,
+        "retirement left retained requests",
+    )?;
+    block
+        .retire_queue(queue.as_handle_ref(), deadline()?)
+        .map_err(show)?;
+    let fresh = block.create_queue(QueueConfig::default()).map_err(show)?;
+    read(&fresh, 0, &mut [0; 512])?;
+    println!("BLOCK-QUEUE: RETIREMENT PASS");
+    Ok(())
+}
+
+fn queue_rights() -> Rights {
+    Rights::READ
+        .union(Rights::WRITE)
+        .union(Rights::WAIT)
+        .union(Rights::INSPECT)
+        .union(Rights::DUPLICATE)
+        .union(Rights::TRANSFER)
+}
+
 pub(super) fn run(
     block: &NativeBlock,
     sectors: u64,
@@ -191,6 +235,7 @@ pub(super) fn run(
     root: HandleRef<'_, VmarObject>,
 ) -> Result<(), String> {
     require(sectors >= 1024, "fixture volume too small")?;
+    retirement(block)?;
     readonly_window(block, root)?;
     admission_wait(block)?;
     let queue = block

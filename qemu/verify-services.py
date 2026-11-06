@@ -50,7 +50,7 @@ def prepare(args):
         return value
     def write(value):
         (declarations / (value['name'] + '.json')).write_text(json.dumps(value))
-    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines'), ('publication', 'publication')]:
+    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines'), ('publication', 'publication'), ('connection-errors', 'connection-errors'), ('critical-subsystem', 'critical-subsystem')]:
         value = component(name, mode, startup='eager')
         if name == 'observer':
             value['use'] = [{'name': 'observe', 'kind': observe, 'purpose': 0x800c0003}]
@@ -140,6 +140,9 @@ def run(args):
         shell = Shell(vm)
         journal = Journal(shell)
         command = shell.check
+        for binary in ('vdso-static', 'vdso-dynamic'):
+            if b'VDSO_CLOCK_FALLBACK_OK' not in command(binary):
+                raise AssertionError(f'{binary}: missing clock/fallback proof')
         def state(name, expected, instance=None):
             until = time.monotonic() + 30
             while time.monotonic() < until:
@@ -180,6 +183,8 @@ def run(args):
         journal.message('/tests/bounded', 'SERVICE_BOUNDED_ADMISSION_OK')
         journal.message('/tests/deadlines', 'SERVICE_REQUEST_DEADLINES_OK')
         journal.message('/tests/publication', 'SERVICE_PUBLICATION_OK')
+        journal.message('/tests/connection-errors', 'COMPONENT_CONNECTION_ERRORS_OK')
+        journal.message('/component-manager', 'CRITICAL: /tests/critical-subsystem generation=1 critical subsystem failure: CRITICAL_SUBSYSTEM_TEST')
         command('componentctl start /tests/journal-admission')
         state('/tests/journal-admission', 'completed')
         journal.message('/tests/journal-admission', 'JOURNAL_ADMISSION_RECOVERY_OK')

@@ -330,6 +330,18 @@ test-guest-smp: image guest-smp-initramfs
 		"$(NATIVE_SMP_INITRAMFS)" "$(APP_OUTPUT)/guest-smp.log"
 
 .PHONY: test-services
+app-fixtures: native-vdso-probes
+.PHONY: native-vdso-probes
+native-vdso-probes: sdk
+	@mkdir -p "$(APP_OUTPUT)"
+	HYPER_CLANG="$(CLANG)" HYPER_LD="$(HYPER_LD)" HYPER_LINK_MODE=static \
+		"$(SDK_OUTPUT)/bin/hyper-cc" -O2 tests/native/vdso.c -o "$(APP_OUTPUT)/vdso-static"
+	HYPER_CLANG="$(CLANG)" HYPER_LD="$(HYPER_LD)" HYPER_LINK_MODE=dynamic \
+		"$(SDK_OUTPUT)/bin/hyper-cc" -O2 tests/native/vdso.c -o "$(APP_OUTPUT)/vdso-dynamic"
+
+test-services: APP_EXTRA_BINS += hyper-service-probe hyper-test-report
+test-services: NATIVE_EXTRA_ENTRIES += 0755 system:bin/service-probe "$(APP_OUTPUT)/service-probe" 0755 system:bin/test-report "$(APP_OUTPUT)/test-report"
+test-services: NATIVE_EXTRA_ENTRIES += 0755 system:bin/vdso-static "$(APP_OUTPUT)/vdso-static" 0755 system:bin/vdso-dynamic "$(APP_OUTPUT)/vdso-dynamic"
 test-services: image native-initramfs
 	@fixture=$$(mktemp -d "$(APP_OUTPUT)/services.XXXXXX") && \
 	python3 -B tests/qemu/verify-services.py prepare \
@@ -397,7 +409,7 @@ TRACE_LOG ?= $(APP_OUTPUT)/trace-$(QEMU_CPUS).log
 .PHONY: test-trace test-trace-remote test-trace-volume
 test-trace test-trace-remote test-trace-volume: export KERNEL_FEATURES = rtc runtime-symbols crash-console kernel-trace
 test-trace test-trace-remote test-trace-volume: APP_EXTRA_BINS += hyper-perf hyper-test-report hyper-lifecycle-stress
-test-trace test-trace-remote test-trace-volume: image app
+test-trace test-trace-remote test-trace-volume: image app native-vdso-probes
 	@test "$(ARCH)" = aarch64 || { echo "disk-backed trace acceptance requires aarch64" >&2; exit 2; }
 	mkdir -p "$(BOARD_TEST_OUTPUT)" "$(dir $(TRACE_LOG))"
 	@fixture=$$(mktemp -d "$(BOARD_TEST_OUTPUT)/trace.XXXXXX") && \
@@ -405,7 +417,7 @@ test-trace test-trace-remote test-trace-volume: image app
 	$(MAKE) -o image -o app board-image BOARD=qemu \
 		BOARD_CONFIG="$$fixture/board.json" BOARD_OUTPUT="$$fixture" \
 		BOARD_IMAGE="$$fixture/disk.img" \
-		BOARD_EXTRA_ENTRIES='0755 bin/perf "$(APP_OUTPUT)/perf" 0755 bin/test-report "$(APP_OUTPUT)/test-report" 0755 bin/lifecycle-stress "$(APP_OUTPUT)/lifecycle-stress"' && \
+		BOARD_EXTRA_ENTRIES='0755 bin/perf "$(APP_OUTPUT)/perf" 0755 bin/test-report "$(APP_OUTPUT)/test-report" 0755 bin/lifecycle-stress "$(APP_OUTPUT)/lifecycle-stress" 0755 bin/vdso-static "$(APP_OUTPUT)/vdso-static" 0755 bin/vdso-dynamic "$(APP_OUTPUT)/vdso-dynamic"' && \
 	$(NATIVE_QEMU_ENV) python3 -B tests/qemu/$(if $(filter test-trace-remote,$@),verify-trace-remote.py,$(if $(filter test-trace-volume,$@),verify-trace-volume.py,verify-trace.py)) \
 		$(if $(filter test-trace-remote,$@),--qemu "$(QEMU)" --image "$(KERNEL_IMAGE)" --initramfs "$$fixture/bootstrap.cpio" --log "$(TRACE_LOG)","$(QEMU)" "$(KERNEL_IMAGE)" "$$fixture/bootstrap.cpio" "$(TRACE_LOG)") \
 		--disk "$$fixture/disk.img" --board "$$fixture/deployment.json"

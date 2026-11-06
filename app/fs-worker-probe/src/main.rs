@@ -122,22 +122,19 @@ fn fault() -> ! {
 
 fn run() -> Result<(), String> {
     let mut startup = hyper_rt::process::startup().map_err(|e| format!("{e:?}"))?;
-    let block = hyper_os::block::NativeBlock::from_handle(
+    let queue = hyper_os::block::BlockQueue::from_handle(
         startup
-            .take(hyper_service::filesystem::BLOCK)
+            .take(hyper_service::filesystem::QUEUE)
             .map_err(|e| format!("{e:?}"))?,
     );
-    let queue = block
-        .create_queue(hyper_os::block::QueueConfig::default())
-        .map_err(|e| format!("{e:?}"))?;
     let mut probe = Probe::default();
     let completed = hyper_fs_service::serve(&mut startup, &mut probe, queue)?;
     if probe.fault_on_stop {
         // Namespace detach succeeded, but the manager must retain the reason
-        // when this process dies before returning its exclusive volume owner.
+        // when this process dies before acknowledging queue retirement.
         fault();
     }
-    hyper_fs_service::return_block(completed, block)
+    hyper_fs_service::finish(completed)
 }
 
 fn main() -> std::process::ExitCode {

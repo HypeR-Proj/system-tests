@@ -4,6 +4,7 @@
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
 mod admission;
 mod bounded_admission;
+mod connection_errors;
 mod graceful_stop;
 mod publication;
 mod rendezvous;
@@ -16,6 +17,14 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("connection-errors") => connection_errors::verify()?,
+        Some("critical-subsystem") => {
+            let startup = hyper_rt::process::startup()?;
+            hyper_component::connection::report_critical_failure(
+                startup.borrow(hyper_component::CONNECTOR)?,
+                "CRITICAL_SUBSYSTEM_TEST loss=unknown recovery=unavailable",
+            )?;
+        }
         Some("plain") => {
             let mut byte = [0];
             if std::io::stdin().read(&mut byte)? != 0 {
@@ -214,14 +223,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     .duplicate(hyper_service_ipc::CLIENT_RIGHTS)?;
                 let barrier = barrier.clone();
                 workers.push(std::thread::spawn(
-                    move || -> hyper_service_ipc::RpcResult<()> {
+                    move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         barrier.wait();
                         let session = hyper_component::connection::connect(
                             connector.as_handle_ref(),
                             "echo",
                             hyper_service_ipc::deadline()?,
-                        )
-                        .map_err(hyper_os::Error::from)?;
+                        )?;
                         let value = format!("connection-{n}");
                         let reply: String =
                             hyper_service_ipc::request(session.as_handle_ref(), &value)?;
@@ -233,7 +241,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 ));
             }
             for worker in workers {
-                worker.join().map_err(|_| "client thread failed")??;
+                worker
+                    .join()
+                    .map_err(|_| "client thread failed")?
+                    .map_err(|error| -> Box<dyn std::error::Error> { error })?;
             }
             if !matches!(
                 hyper_component::connection::connect(
