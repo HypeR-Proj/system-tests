@@ -70,7 +70,11 @@ def run(args):
                    + re.escape(reason.encode()), 15)
         records = journal.message('/fs-backend', reason, stream='stderr')
         failures = [r for r in records if reason in r['text']]
-        if len(failures) != 1 or not all(s in failures[0]['text'] for s in ('fs-f2fs', '/data', '0x')):
+        stages = [re.search(r'\bstage=([^ ]+)', r['text']) for r in failures]
+        stages = [match.group(1) if match else None for match in stages]
+        if (stages.count('provider-death') != 1 or len(stages) != len(set(stages))
+                or not all(all(s in r['text'] for s in ('fs-f2fs', '/data', '0x'))
+                           for r in failures)):
             raise AssertionError(f'missing or repeated worker identity/reason: {failures!r}')
         until = time.monotonic() + 15
         while True:
