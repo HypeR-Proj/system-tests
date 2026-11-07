@@ -35,6 +35,7 @@ def main():
         session.await_text(rb'FS-FAILURE: sync-scope PASS\n')
         session.await_text(rb'FS-FAILURE: writeback-pressure PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: writeback-overlap PASS\n', timeout=120)
+        session.await_text(rb'FS-FAILURE: writeback-rolling PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: writeback-fault PASS\n', timeout=120)
         session.await_text(rb'FS-FAILURE: PASS\n')
     print(f'Filesystem failure isolation passed: {args.log}')

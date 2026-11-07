@@ -32,6 +32,7 @@ mod volume;
 mod writeback_fault;
 mod writeback_overlap;
 mod writeback_pressure;
+mod writeback_rolling;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -314,6 +315,7 @@ fn suite(startup: &mut Startup<'_>) -> Result<()> {
     sync_scope::run(startup, &root)?;
     writeback_pressure::run(startup, &root)?;
     writeback_overlap::run(startup, &root)?;
+    writeback_rolling::run(startup, &root)?;
     writeback_fault::run(startup, &root)?;
     Ok(())
 }
@@ -835,6 +837,13 @@ fn run() -> Result<bool> {
             && writeback_fault::handles(&path)
         {
             writeback_fault::serve(&mut startup, notice, &path)?;
+            return Ok(false);
+        }
+        if let Some(path) = std::env::args().nth(2)
+            && writeback_rolling::handles(&path)
+        {
+            let mut volume = writeback_rolling::RollingVolume::new(notice, &path);
+            let _completion = hyper_fs_service::serve_buffered(&mut startup, &mut volume)?;
             return Ok(false);
         }
         if std::env::args().nth(2).as_deref() == Some("/fs-writeback-overlap") {
