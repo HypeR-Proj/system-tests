@@ -240,9 +240,9 @@ def main():
     args.observed_name = io_vm['name']
     args.observed_image = io_vm['image']
     args.io_configuration = io_vm['configuration']
-    # NativeBlock reserves a 1 MiB shared-memory pool for each client.
+    # Discovery keeps its 1 MiB window; each Native client owns a 2 MiB pool.
     args.maximum_io_backing = (args.io_configuration['memory-bytes']
-                               + (1 + len(board.native_volumes())) * 1024 * 1024)
+                               + (1 + 2 * len(board.native_volumes())) * 1024 * 1024)
     conflict_config = {'format': 'hyper.vm-config', 'virtual-machines': [
         {field: io_vm[field] for field in ('name', 'image', 'configuration')}]}
     command = ('echo ' + shlex.quote(json.dumps(conflict_config, separators=(',', ':')))
