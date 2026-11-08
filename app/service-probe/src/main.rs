@@ -12,6 +12,7 @@ mod graceful_stop;
 mod publication;
 mod rendezvous;
 mod request_deadlines;
+mod random;
 mod shared_queue;
 
 use std::{
@@ -21,6 +22,9 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("random") => random::verify()?,
+        Some("random-child") => random::child()?,
+        Some("random-denied") => random::denied()?,
         Some("executable") => executable::verify()?,
         Some("executable-publisher") => executable_cross_cpu::publisher()?,
         Some("executable-reader") => executable_cross_cpu::reader()?,

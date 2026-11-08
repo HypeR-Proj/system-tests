@@ -50,7 +50,7 @@ def prepare(args):
         return value
     def write(value):
         (declarations / (value['name'] + '.json')).write_text(json.dumps(value))
-    for name, mode in [('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines'), ('publication', 'publication'), ('connection-errors', 'connection-errors'), ('critical-subsystem', 'critical-subsystem')]:
+    for name, mode in [('random-denied', 'random-denied'), ('plain', 'plain'), ('ipc', 'ipc'), ('observer', 'observe'), ('bounded', 'bounded-admission'), ('deadlines', 'request-deadlines'), ('publication', 'publication'), ('connection-errors', 'connection-errors'), ('critical-subsystem', 'critical-subsystem')]:
         value = component(name, mode, startup='eager')
         if name == 'observer':
             value['use'] = [{'name': 'observe', 'kind': observe, 'purpose': 0x800c0003}]
@@ -196,6 +196,8 @@ def run(args):
             raise AssertionError(f'normal completion has no informational report: {completed!r}')
         state('/tests/observer', 'completed')
         state('/tests/ipc', 'completed')
+        state('/tests/random-denied', 'completed')
+        journal.message('/tests/random-denied', 'RANDOM_DENIED_OK')
         state('/tests/bounded', 'completed')
         state('/tests/deadlines', 'completed')
         if b'interactive-ready' not in command('componentctl status /session-manager'):
