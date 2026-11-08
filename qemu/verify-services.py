@@ -145,6 +145,8 @@ def run(args):
                 raise AssertionError(f'{binary}: missing clock/fallback proof')
         if b'SHARED_QUEUE_CROSS_PROCESS_OK' not in command('service-probe shared-queue', timeout=120):
             raise AssertionError('shared queue did not complete cross-process delivery and peer-loss checks')
+        if b'VMO_ATOMIC_WAIT_CROSS_PROCESS_OK' not in command('service-probe atomic-wait', timeout=120):
+            raise AssertionError('VMO atomic wait did not complete cross-process isolation and cleanup checks')
         def state(name, expected, instance=None):
             until = time.monotonic() + 30
             while time.monotonic() < until:

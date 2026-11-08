@@ -3,6 +3,7 @@
 
 //! Native lifecycle/stdio probe. The plain mode deliberately uses only std I/O.
 mod admission;
+mod atomic_wait;
 mod bounded_admission;
 mod connection_errors;
 mod graceful_stop;
@@ -18,6 +19,8 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("atomic-wait") => atomic_wait::verify()?,
+        Some("atomic-wait-child") => atomic_wait::child()?,
         Some("shared-queue") => shared_queue::verify()?,
         Some("shared-queue-child") => shared_queue::child()?,
         Some("connection-errors") => connection_errors::verify()?,
