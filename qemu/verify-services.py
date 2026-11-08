@@ -143,6 +143,8 @@ def run(args):
         for binary in ('vdso-static', 'vdso-dynamic'):
             if b'VDSO_CLOCK_FALLBACK_OK' not in command(binary):
                 raise AssertionError(f'{binary}: missing clock/fallback proof')
+        if b'SHARED_QUEUE_CROSS_PROCESS_OK' not in command('service-probe shared-queue', timeout=120):
+            raise AssertionError('shared queue did not complete cross-process delivery and peer-loss checks')
         def state(name, expected, instance=None):
             until = time.monotonic() + 30
             while time.monotonic() < until:
