@@ -6,6 +6,8 @@ mod admission;
 mod atomic_wait;
 mod bounded_admission;
 mod connection_errors;
+mod executable;
+mod executable_cross_cpu;
 mod graceful_stop;
 mod publication;
 mod rendezvous;
@@ -19,6 +21,9 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("executable") => executable::verify()?,
+        Some("executable-publisher") => executable_cross_cpu::publisher()?,
+        Some("executable-reader") => executable_cross_cpu::reader()?,
         Some("atomic-wait") => atomic_wait::verify()?,
         Some("atomic-wait-child") => atomic_wait::child()?,
         Some("shared-queue") => shared_queue::verify()?,

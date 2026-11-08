@@ -56,6 +56,37 @@ def prepare(args):
             value['use'] = [{'name': 'observe', 'kind': observe, 'purpose': 0x800c0003}]
             realm['offer'].append({'name': 'observe', 'to': name, 'from': 'parent', 'source': 'observe', 'kind': observe})
         write(value)
+    # Only this explicitly routed component may publish executable memory.
+    # Native ExecutableAuthority=8; CREATE_EXECUTABLE|DUPLICATE|TRANSFER|INSPECT.
+    executable = {'type': 'object', 'object_type': 8, 'rights': (1 << 25) | 1 | 2 | 8}
+    root['capabilities'].append({'name': 'executable', 'kind': executable})
+    root['offer'].append({'name': 'executable', 'to': 'tests', 'from': 'self', 'source': 'executable', 'kind': executable})
+    policy['exports'].append({'realm': '/', 'name': 'executable', 'source': 'bootstrap.executable-authority'})
+    for result in ('allowed', 'denied'):
+        name = 'executable-' + result
+        value = component(name, 'executable', startup='eager')
+        value['program']['arguments'].append(result)
+        if result == 'allowed':
+            value['use'] = [{'name': 'executable', 'kind': executable, 'purpose': 4}]
+            realm['offer'].append({'name': 'executable', 'to': name, 'from': 'parent', 'source': 'executable', 'kind': executable})
+        write(value)
+    # Only the SMP executable fixture gets process construction authority.
+    # No production component or the unprivileged sibling inherits these grants.
+    allowed_path = declarations / 'executable-allowed.json'
+    allowed = json.loads(allowed_path.read_text())
+    for name, source, object_type, rights, purpose in [
+        ('exec-factory', 'bootstrap.task-factory', 7, 1 << 20, 3),
+        ('exec-group', 'bootstrap.task-group', 5, 1 << 26, 2),
+        ('exec-domain', 'bootstrap.resource-domain', 6, 1 << 27, 1),
+        ('exec-root', 'bootstrap.root-directory', 12, 1 | 2 | 16 | 128 | (1 << 35), 7),
+    ]:
+        kind = {'type': 'object', 'object_type': object_type, 'rights': rights}
+        root['capabilities'].append({'name': name, 'kind': kind})
+        root['offer'].append({'name': name, 'to': 'tests', 'from': 'self', 'source': name, 'kind': kind})
+        policy['exports'].append({'realm': '/', 'name': name, 'source': source})
+        realm['offer'].append({'name': name, 'to': 'executable-allowed', 'from': 'parent', 'source': name, 'kind': kind})
+        allowed['use'].append({'name': name, 'kind': kind, 'purpose': purpose})
+    write(allowed)
     # Reuse the production protocol's declared type, rather than duplicating it.
     journal_offer = next(item for item in root['offer'] if item['to'] == 'session-manager' and item['name'] == 'journal')
     journal_protocol = journal_offer['kind']
@@ -174,6 +205,11 @@ def run(args):
                 path = '/tests/' + prefix + 'resident-' + result
                 state(path, 'completed')
                 journal.message(path, 'COMPONENT_MEMORY_LOCK_' + result.upper() + '_OK')
+        for result, marker in [('allowed', 'EXECUTABLE_PUBLICATION_ALLOWED_OK'), ('denied', 'EXECUTABLE_AUTHORITY_DENIED_OK')]:
+            path = '/tests/executable-' + result
+            state(path, 'completed')
+            journal.message(path, marker)
+        journal.message('/tests/executable-allowed', 'EXECUTABLE_CROSS_CPU_0_TO_1_OK')
         state('/tests/server', 'stopped', 0)
         unavailable = shell.check('vmm list', failed=True, timeout=10)
         if b'Status(Status(-15))' not in unavailable:
