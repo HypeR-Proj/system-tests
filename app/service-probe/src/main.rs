@@ -9,6 +9,7 @@ mod graceful_stop;
 mod publication;
 mod rendezvous;
 mod request_deadlines;
+mod shared_queue;
 
 use std::{
     io::{Read, Write},
@@ -17,6 +18,8 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("shared-queue") => shared_queue::verify()?,
+        Some("shared-queue-child") => shared_queue::child()?,
         Some("connection-errors") => connection_errors::verify()?,
         Some("critical-subsystem") => {
             let startup = hyper_rt::process::startup()?;
