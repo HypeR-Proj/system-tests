@@ -10,9 +10,9 @@ mod executable;
 mod executable_cross_cpu;
 mod graceful_stop;
 mod publication;
+mod random;
 mod rendezvous;
 mod request_deadlines;
-mod random;
 mod shared_queue;
 
 use std::{
