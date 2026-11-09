@@ -62,6 +62,9 @@ if __name__ == '__main__':
     boot(args, 'fsync-write', clean=False)
     boot(args, 'fsync-verify')
     boot(args, 'writeback')
+    # Mapping DATA/ALL fences must survive an unclean restart without umount.
+    boot(args, 'shared-write', clean=False)
+    boot(args, 'shared-verify')
 
     boot(args, 'stream-write')
     boot(args, 'stream-verify')

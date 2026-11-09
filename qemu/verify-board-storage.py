@@ -85,6 +85,12 @@ def boot(args, mode):
                     result = await_text(rb'hyper-sh\$ ')
                     if status(result) != 0 or marker not in result:
                         raise RuntimeError(f'initialized random acceptance failed: {result!r}')
+            if mode == 'write' and args.naming == 'fat-aliases':
+                child.stdin.write(checked('/bin/f2fs-smoke shared-unsupported /data'))
+                child.stdin.flush()
+                result = await_text(rb'hyper-sh\$ ')
+                if status(result) != 0 or b'F2FS-SMOKE: shared-unsupported PASS' not in result:
+                    raise RuntimeError(f'FAT shared mapping eligibility failed: {result!r}')
             child.stdin.write(f'/bin/storage-probe {mode} {args.naming}\n'.encode())
             child.stdin.flush()
             if mode == 'write':

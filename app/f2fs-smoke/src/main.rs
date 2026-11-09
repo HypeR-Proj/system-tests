@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 roolrz
 // SPDX-License-Identifier: Apache-2.0
 //! Mounted filesystem acceptance through the Native VFS and F2FS worker.
+mod shared_mapping;
+
 use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::Path,
@@ -45,6 +47,13 @@ fn remove_verified_fixture(path: &Path) -> Result<(), String> {
     }
 }
 fn mounted(mode: &str, root: &Path) -> Result<(), String> {
+    match mode {
+        "shared-write" => return shared_mapping::write(root).map_err(show),
+        "shared-child" => return shared_mapping::child(root).map_err(show),
+        "shared-verify" => return shared_mapping::verify(root).map_err(show),
+        "shared-unsupported" => return shared_mapping::unsupported(root).map_err(show),
+        _ => {}
+    }
     let dir = root.join("f2fs-acceptance");
     let file = dir.join("payload");
     let bytes = payload();
