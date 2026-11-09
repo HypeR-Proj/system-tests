@@ -342,6 +342,7 @@ fn suite(startup: &Startup<'_>) -> Result<()> {
         IoDevices {
             clients: &[],
             sdhci: None,
+            entropy: None,
             network: None,
             pci: None,
             virtual_pci: None,

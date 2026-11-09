@@ -75,6 +75,16 @@ def boot(args, mode):
             if b'[HypeR bootstrap stage 1][io-runtime] IO VM: ' not in boot:
                 raise RuntimeError('forwarded I/O VM log prefix missing')
             await_text(rb'hyper-sh\$ ')
+            if mode == 'write':
+                for command, marker in (
+                        ('/bin/service-probe random', b'RANDOM_NATIVE_OK'),
+                        ("/bin/sh -c '/bin/service-probe random-child'", b'RANDOM_CHILD_RETAINED_OK'),
+                        ('/bin/c-standard-test --random', b'C_RANDOM_OK')):
+                    child.stdin.write(checked(command))
+                    child.stdin.flush()
+                    result = await_text(rb'hyper-sh\$ ')
+                    if status(result) != 0 or marker not in result:
+                        raise RuntimeError(f'initialized random acceptance failed: {result!r}')
             child.stdin.write(f'/bin/storage-probe {mode} {args.naming}\n'.encode())
             child.stdin.flush()
             if mode == 'write':

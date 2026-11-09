@@ -10,6 +10,7 @@ mod executable;
 mod executable_cross_cpu;
 mod graceful_stop;
 mod publication;
+mod random;
 mod rendezvous;
 mod request_deadlines;
 mod shared_queue;
@@ -21,6 +22,9 @@ use std::{
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
+        Some("random") => random::verify()?,
+        Some("random-child") => random::child()?,
+        Some("random-denied") => random::denied()?,
         Some("executable") => executable::verify()?,
         Some("executable-publisher") => executable_cross_cpu::publisher()?,
         Some("executable-reader") => executable_cross_cpu::reader()?,

@@ -14,6 +14,36 @@ fn payload() -> Vec<u8> {
 fn show(e: impl std::fmt::Debug) -> String {
     format!("{e:?}")
 }
+fn remove_verified_fixture(path: &Path) -> Result<(), String> {
+    // Native close retires handle authority immediately; final object teardown
+    // runs on the reaper. A just-closed remote file can briefly retain its node
+    // lease. Retry only cleanup after successful verification, never the read
+    // or an explicit sync that could hide a persistence failure.
+    let started = std::time::Instant::now();
+    let mut busy_retries = 0;
+    loop {
+        match std::fs::remove_file(path) {
+            Ok(()) => {
+                if busy_retries != 0 {
+                    println!("F2FS-SMOKE: verified fixture cleanup BUSY retries={busy_retries}");
+                }
+                return Ok(());
+            }
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ResourceBusy
+                    && started.elapsed() < std::time::Duration::from_secs(2) =>
+            {
+                busy_retries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            Err(error) => {
+                return Err(format!(
+                    "remove verified fixture after {busy_retries} BUSY retries: {error:?}"
+                ));
+            }
+        }
+    }
+}
 fn mounted(mode: &str, root: &Path) -> Result<(), String> {
     let dir = root.join("f2fs-acceptance");
     let file = dir.join("payload");
@@ -69,10 +99,13 @@ fn mounted(mode: &str, root: &Path) -> Result<(), String> {
         }
         "periodic-verify" => {
             let file = root.join("f2fs-periodic");
-            if std::fs::read(&file).map_err(show)? != bytes[..16384] {
+            if std::fs::read(&file)
+                .map_err(|error| format!("read periodic persisted payload: {error:?}"))?
+                != bytes[..16384]
+            {
                 return Err("periodic checkpoint lost payload".into());
             }
-            std::fs::remove_file(file).map_err(show)?;
+            remove_verified_fixture(&file)?;
         }
         "fsync-write" => {
             let file = root.join("f2fs-roll-forward");
