@@ -14,6 +14,7 @@ mod random;
 mod rendezvous;
 mod request_deadlines;
 mod shared_queue;
+mod shared_mutex;
 
 use std::{
     io::{Read, Write},
@@ -28,6 +29,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some("executable") => executable::verify()?,
         Some("executable-publisher") => executable_cross_cpu::publisher()?,
         Some("executable-reader") => executable_cross_cpu::reader()?,
+        Some("shared-mutex") => shared_mutex::verify()?,
+        Some("shared-mutex-child") => shared_mutex::child()?,
         Some("atomic-wait") => atomic_wait::verify()?,
         Some("atomic-wait-child") => atomic_wait::child()?,
         Some("shared-queue") => shared_queue::verify()?,

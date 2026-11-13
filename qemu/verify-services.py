@@ -178,6 +178,8 @@ def run(args):
             raise AssertionError('shared queue did not complete cross-process delivery and peer-loss checks')
         if b'VMO_ATOMIC_WAIT_CROSS_PROCESS_OK' not in command('service-probe atomic-wait', timeout=120):
             raise AssertionError('VMO atomic wait did not complete cross-process isolation and cleanup checks')
+        if b'SHARED_MUTEX_OWNER_DEATH_CROSS_PROCESS_OK' not in command('service-probe shared-mutex', timeout=120):
+            raise AssertionError('shared mutex owner-death, cancellation or recovery failed')
         def state(name, expected, instance=None):
             until = time.monotonic() + 30
             while time.monotonic() < until:
